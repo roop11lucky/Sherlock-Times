@@ -137,6 +137,21 @@ def get_sentiment(text):
         return "Neutral", compound
 
 # -------------------------------
+# Fixed Sentiment Colors & Icons
+# -------------------------------
+SENTIMENT_COLORS = {
+    "Negative": "#e74c3c",  # Red
+    "Neutral": "#f1c40f",   # Yellow
+    "Positive": "#2ecc71"   # Green
+}
+
+SENTIMENT_ICONS = {
+    "Negative": "🔴❌",
+    "Neutral": "🟡➖",
+    "Positive": "🟢✅"
+}
+
+# -------------------------------
 # Dashboard
 # -------------------------------
 st.title("🕵️ Sherlock Times – Live Client News Dashboard")
@@ -169,23 +184,41 @@ for client, articles in client_articles.items():
 
     st.header(f"🏢 {client} ({st.session_state.client_locations[client]})")
 
-    # Sentiment pie chart
+    # Sentiment pie chart with fixed colors
     records = []
     for art in articles:
         sentiment, score = get_sentiment(art["summary"])
-        records.append({"Title": art["title"], "Sentiment": sentiment, "Score": score, "Published": art["published"]})
+        records.append({
+            "Title": art["title"],
+            "Sentiment": sentiment,
+            "Score": score,
+            "Published": art["published"]
+        })
     df = pd.DataFrame(records)
 
-    chart = alt.Chart(df).mark_arc().encode(
-        theta="count():Q",
-        color="Sentiment:N"
-    ).properties(title=f"{client} Sentiment Distribution")
+    chart = (
+        alt.Chart(df)
+        .mark_arc()
+        .encode(
+            theta="count():Q",
+            color=alt.Color(
+                "Sentiment:N",
+                scale=alt.Scale(
+                    domain=list(SENTIMENT_COLORS.keys()),
+                    range=list(SENTIMENT_COLORS.values())
+                ),
+                legend=alt.Legend(title="Sentiment")
+            ),
+            tooltip=["Sentiment", "count()"]
+        )
+        .properties(title=f"{client} Sentiment Distribution")
+    )
     st.altair_chart(chart, use_container_width=True)
 
-    # Articles
+    # Articles with icons
     for art in articles:
         sentiment, score = get_sentiment(art["summary"])
-        sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
+        sentiment_icon = SENTIMENT_ICONS.get(sentiment, "⚪")
 
         with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
             st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
