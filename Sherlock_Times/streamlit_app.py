@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import pandas as pd
 import altair as alt
+import pytz
 
 # -------------------------------
 # Config
@@ -64,7 +65,6 @@ override_loc = st.sidebar.selectbox("🌐 Override All Locations", ["Off", "Glob
 # Helper Functions
 # -------------------------------
 def resolve_redirect(url):
-    """Follow Google News redirect to get the real article link."""
     try:
         r = requests.get(url, allow_redirects=True, timeout=5)
         return r.url
@@ -72,7 +72,6 @@ def resolve_redirect(url):
         return url
 
 def clean_html(raw_html):
-    """Remove HTML tags from RSS summary."""
     try:
         soup = BeautifulSoup(raw_html, "html.parser")
         return soup.get_text()
@@ -80,10 +79,8 @@ def clean_html(raw_html):
         return raw_html
 
 def fetch_news_rss(entity, max_results=10):
-    """Fetch news headlines from Google News RSS with location handling."""
     query = entity.replace(" ", "+")
     
-    # Decide location
     if override_loc != "Off":
         loc = override_loc
     else:
@@ -113,12 +110,11 @@ def fetch_news_rss(entity, max_results=10):
     return articles
 
 def fetch_article_preview(url):
-    """Extract snippet, summary, and image using newspaper3k NLP."""
     try:
         article = Article(url)
         article.download()
         article.parse()
-        article.nlp()  # enables keywords + summary
+        article.nlp()
         snippet = article.text[:500] + "..." if article.text else None
         summary = article.summary if article.summary else snippet
         img = article.top_image
@@ -145,9 +141,11 @@ def get_sentiment(text):
 # -------------------------------
 st.title("🕵️ Sherlock Times – Live Client News Dashboard")
 
-last_fetched = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-st.markdown(f"⏱ **Last Fetched:** {last_fetched}")
-st.markdown(f"📅 **Today:** {datetime.now().strftime('%A, %d %B %Y')}")
+# Always show last fetched in IST
+tz = pytz.timezone("Asia/Kolkata")
+last_fetched = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+st.markdown(f"⏱ **Last Fetched (IST):** {last_fetched}")
+st.markdown(f"📅 **Today:** {datetime.now(tz).strftime('%A, %d %B %Y')}")
 
 client_articles = {}
 for entity in st.session_state.entities:
