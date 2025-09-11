@@ -157,15 +157,16 @@ for client, articles in client_articles.items():
 
     # Articles list
     for art in articles:
-        with st.expander(f"📰 {art['title']} ({art['published']})"):
-            sentiment, score = get_sentiment(art["summary"])
-            if sentiment == "Positive":
-                st.markdown(f"**Sentiment:** 🟢 {sentiment} ({score:.2f})")
-            elif sentiment == "Negative":
-                st.markdown(f"**Sentiment:** 🔴 {sentiment} ({score:.2f})")
-            else:
-                st.markdown(f"**Sentiment:** ⚪ {sentiment} ({score:.2f})")
+        sentiment, score = get_sentiment(art["summary"])
+        if sentiment == "Positive":
+            sentiment_icon = "🟢"
+        elif sentiment == "Negative":
+            sentiment_icon = "🔴"
+        else:
+            sentiment_icon = "⚪"
 
+        with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
+            st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
             st.write(art["summary"])
 
             snippet, img = fetch_article_preview(art["link"])
