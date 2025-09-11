@@ -1,0 +1,17 @@
+clients:
+  - OpenAI
+  - Oracle
+  - Microsoft
+  - Google
+technologies:
+  - Generative AI
+  - Cloud Computing
+  - Data Analytics
+domains:
+  - Retail
+  - Finance
+  - Healthcare
+owners:
+  - Satya Nadella
+  - Sundar Pichai
+  - Sam Altman
