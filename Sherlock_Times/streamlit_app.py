@@ -37,7 +37,6 @@ if "entities" not in st.session_state:
 # -------------------------------
 LOCATIONS = ["Global", "IN", "US"]
 
-# Initialize per-client mapping
 if "client_locations" not in st.session_state:
     st.session_state.client_locations = {
         "Google": "IN",
@@ -94,7 +93,7 @@ def fetch_news_rss(entity, max_results=10):
         lang, gl, ceid = "en-IN", "IN", "IN:en"
     elif loc == "US":
         lang, gl, ceid = "en-US", "US", "US:en"
-    else:  # Global fallback
+    else:
         lang, gl, ceid = "en", "US", "US:en"
 
     url = f"https://news.google.com/rss/search?q={query}&hl={lang}&gl={gl}&ceid={ceid}"
@@ -114,23 +113,24 @@ def fetch_news_rss(entity, max_results=10):
     return articles
 
 def fetch_article_preview(url):
-    """Try extracting snippet + image from article."""
+    """Extract snippet, summary, and image using newspaper3k NLP."""
     try:
         article = Article(url)
         article.download()
         article.parse()
+        article.nlp()  # enables keywords + summary
         snippet = article.text[:500] + "..." if article.text else None
+        summary = article.summary if article.summary else snippet
         img = article.top_image
         if img and ("gstatic" in img or "googleusercontent" in img):
             img = None
-        return snippet, img
+        return snippet, summary, img
     except:
-        return None, None
+        return None, None, None
 
 # Sentiment Analysis
 analyzer = SentimentIntensityAnalyzer()
 def get_sentiment(text):
-    """Return sentiment label + score using VADER."""
     score = analyzer.polarity_scores(text)
     compound = score["compound"]
     if compound >= 0.05:
@@ -145,18 +145,14 @@ def get_sentiment(text):
 # -------------------------------
 st.title("🕵️ Sherlock Times – Live Client News Dashboard")
 
-# Last fetched info
-st.markdown(f"📅 **Today:** {datetime.now().strftime('%A, %d %B %Y')}")
 last_fetched = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 st.markdown(f"⏱ **Last Fetched:** {last_fetched}")
+st.markdown(f"📅 **Today:** {datetime.now().strftime('%A, %d %B %Y')}")
 
-
-# Fetch all articles
 client_articles = {}
 for entity in st.session_state.entities:
     client_articles[entity] = fetch_news_rss(entity)
 
-# Sidebar filters
 selected_tags = st.sidebar.multiselect("🔖 Filter by Clients:", st.session_state.entities, default=st.session_state.entities)
 search_query = st.sidebar.text_input("🔍 Global Search (keywords)")
 
@@ -167,7 +163,6 @@ for client, articles in client_articles.items():
     if client not in selected_tags:
         continue
 
-    # Apply global search
     if search_query:
         articles = [a for a in articles if search_query.lower() in a["title"].lower()]
 
@@ -176,44 +171,36 @@ for client, articles in client_articles.items():
 
     st.header(f"🏢 {client} ({st.session_state.client_locations[client]})")
 
-    # Build DataFrame for sentiment summary
+    # Sentiment pie chart
     records = []
     for art in articles:
         sentiment, score = get_sentiment(art["summary"])
-        records.append({
-            "Title": art["title"],
-            "Sentiment": sentiment,
-            "Score": score,
-            "Published": art["published"]
-        })
+        records.append({"Title": art["title"], "Sentiment": sentiment, "Score": score, "Published": art["published"]})
     df = pd.DataFrame(records)
 
-    # Chart (pie sentiment distribution)
     chart = alt.Chart(df).mark_arc().encode(
         theta="count():Q",
         color="Sentiment:N"
     ).properties(title=f"{client} Sentiment Distribution")
     st.altair_chart(chart, use_container_width=True)
 
-    # Articles list with sentiment in header
+    # Articles
     for art in articles:
         sentiment, score = get_sentiment(art["summary"])
-        if sentiment == "Positive":
-            sentiment_icon = "🟢"
-        elif sentiment == "Negative":
-            sentiment_icon = "🔴"
-        else:
-            sentiment_icon = "⚪"
+        sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
 
         with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
             st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
             st.write(art["summary"])
 
-            snippet, img = fetch_article_preview(art["link"])
+            snippet, summary, img = fetch_article_preview(art["link"])
+            if summary:
+                st.markdown("**📝 AI Summary:**")
+                st.write(summary)
             if snippet:
+                st.markdown("**📄 Snippet:**")
                 st.write(snippet)
             if img:
                 st.image(img, width=600)
 
             st.markdown(f"[🔗 Read full article]({art['link']})")
-
