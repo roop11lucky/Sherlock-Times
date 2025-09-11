@@ -19,7 +19,7 @@ refresh_minutes = st.sidebar.selectbox("⏱ Refresh every:", [5, 15, 30, 60], in
 refresh_seconds = refresh_minutes * 60
 st_autorefresh(interval=refresh_seconds * 1000, key="dashboard_refresh")
 
-# Predefined entities (your updated list)
+# Predefined entities
 if "entities" not in st.session_state:
     st.session_state.entities = [
         "Google", 
@@ -32,14 +32,34 @@ if "entities" not in st.session_state:
         "Gigamon"
     ]
 
-# Add new entity
-new_entity = st.sidebar.text_input("➕ Add new client/tech/domain")
-if st.sidebar.button("Add Entity") and new_entity:
-    if new_entity not in st.session_state.entities:
-        st.session_state.entities.append(new_entity)
-        st.success(f"Added {new_entity}")
-    else:
-        st.warning(f"{new_entity} already exists in the watchlist!")
+# -------------------------------
+# Location Config
+# -------------------------------
+LOCATIONS = ["Global", "IN", "US"]
+
+# Initialize per-client mapping
+if "client_locations" not in st.session_state:
+    st.session_state.client_locations = {
+        "Google": "IN",
+        "Synopsys": "US",
+        "Cisco": "US",
+        "Ideal Living Management LLC": "Global",
+        "Meta": "Global",
+        "Tiger Graph": "Global",
+        "NewFold": "Global",
+        "Gigamon": "Global"
+    }
+
+st.sidebar.subheader("🌍 Client Location Mapping")
+for client in st.session_state.entities:
+    st.session_state.client_locations[client] = st.sidebar.selectbox(
+        f"{client} Location",
+        LOCATIONS,
+        index=LOCATIONS.index(st.session_state.client_locations.get(client, "Global"))
+    )
+
+# Global override
+override_loc = st.sidebar.selectbox("🌐 Override All Locations", ["Off", "Global", "IN", "US"], index=0)
 
 # -------------------------------
 # Helper Functions
@@ -61,9 +81,23 @@ def clean_html(raw_html):
         return raw_html
 
 def fetch_news_rss(entity, max_results=10):
-    """Fetch news headlines from Google News RSS and resolve redirects."""
+    """Fetch news headlines from Google News RSS with location handling."""
     query = entity.replace(" ", "+")
-    url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+    
+    # Decide location
+    if override_loc != "Off":
+        loc = override_loc
+    else:
+        loc = st.session_state.client_locations.get(entity, "Global")
+
+    if loc == "IN":
+        lang, gl, ceid = "en-IN", "IN", "IN:en"
+    elif loc == "US":
+        lang, gl, ceid = "en-US", "US", "US:en"
+    else:  # Global fallback
+        lang, gl, ceid = "en", "US", "US:en"
+
+    url = f"https://news.google.com/rss/search?q={query}&hl={lang}&gl={gl}&ceid={ceid}"
     feed = feedparser.parse(url)
     articles = []
     for entry in feed.entries[:max_results]:
@@ -74,7 +108,8 @@ def fetch_news_rss(entity, max_results=10):
             "link": real_url,
             "published": entry.published,
             "tags": [entity],
-            "summary": summary[:500]  # ✅ Limit summary length
+            "summary": summary[:500],
+            "location": loc
         })
     return articles
 
@@ -110,14 +145,18 @@ def get_sentiment(text):
 # -------------------------------
 st.title("🕵️ Sherlock Times – Live Client News Dashboard")
 
+# Last fetched info
+last_fetched = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+st.markdown(f"⏱ **Last Fetched:** {last_fetched}")
+st.markdown(f"📅 **Today:** {datetime.now().strftime('%A, %d %B %Y')}")
+
 # Fetch all articles
 client_articles = {}
 for entity in st.session_state.entities:
     client_articles[entity] = fetch_news_rss(entity)
 
 # Sidebar filters
-all_tags = st.session_state.entities
-selected_tags = st.sidebar.multiselect("🔖 Filter by Clients:", all_tags, default=all_tags)
+selected_tags = st.sidebar.multiselect("🔖 Filter by Clients:", st.session_state.entities, default=st.session_state.entities)
 search_query = st.sidebar.text_input("🔍 Global Search (keywords)")
 
 # -------------------------------
@@ -134,7 +173,7 @@ for client, articles in client_articles.items():
     if not articles:
         continue
 
-    st.header(f"🏢 {client}")
+    st.header(f"🏢 {client} ({st.session_state.client_locations[client]})")
 
     # Build DataFrame for sentiment summary
     records = []
@@ -155,7 +194,7 @@ for client, articles in client_articles.items():
     ).properties(title=f"{client} Sentiment Distribution")
     st.altair_chart(chart, use_container_width=True)
 
-    # Articles list
+    # Articles list with sentiment in header
     for art in articles:
         sentiment, score = get_sentiment(art["summary"])
         if sentiment == "Positive":
