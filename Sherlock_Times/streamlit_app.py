@@ -145,10 +145,10 @@ SENTIMENT_COLORS = {
     "Positive": "#2ecc71"   # Green
 }
 
-SENTIMENT_ICONS = {
-    "Negative": "🔴❌",
-    "Neutral": "🟡➖",
-    "Positive": "🟢✅"
+SENTIMENT_CIRCLES = {
+    "Negative": "🔴",
+    "Neutral": "🟡",
+    "Positive": "🟢"
 }
 
 # -------------------------------
@@ -215,12 +215,12 @@ for client, articles in client_articles.items():
     )
     st.altair_chart(chart, use_container_width=True)
 
-    # Articles with icons
+    # Articles with simple circle color
     for art in articles:
         sentiment, score = get_sentiment(art["summary"])
-        sentiment_icon = SENTIMENT_ICONS.get(sentiment, "⚪")
+        sentiment_circle = SENTIMENT_CIRCLES.get(sentiment, "⚪")
 
-        with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
+        with st.expander(f"{sentiment_circle} {art['title']} ({art['published']})"):
             st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
             st.write(art["summary"])
 
