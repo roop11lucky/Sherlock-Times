@@ -163,19 +163,86 @@ st.markdown(f"⏱ **Last Fetched (IST):** {last_fetched}")
 st.markdown(f"📅 **Today:** {datetime.now(tz).strftime('%A, %d %B %Y')}")
 
 client_articles = {}
+all_records = []  # collect all for Phase 2 features
+
 for entity in st.session_state.entities:
     client_articles[entity] = fetch_news_rss(entity)
+    for art in client_articles[entity]:
+        sentiment, score = get_sentiment(art["summary"])
+        all_records.append({
+            "Company": entity,
+            "Title": art["title"],
+            "Sentiment": sentiment,
+            "Score": score,
+            "Published": art["published"]
+        })
+
+df_all = pd.DataFrame(all_records)
 
 selected_tags = st.sidebar.multiselect("🔖 Filter by Clients:", st.session_state.entities, default=st.session_state.entities)
 search_query = st.sidebar.text_input("🔍 Global Search (keywords)")
+sentiment_filter = st.sidebar.multiselect("😊 Sentiment Filter:", ["Positive", "Neutral", "Negative"], default=["Positive", "Neutral", "Negative"])
 
 # -------------------------------
-# Display by Client
+# Phase 2 – Competitive Benchmarking
+# -------------------------------
+st.subheader("🏆 Competitive Benchmarking")
+
+if not df_all.empty:
+    agg = df_all.groupby(["Company", "Sentiment"]).size().reset_index(name="Count")
+
+    chart = alt.Chart(agg).mark_bar().encode(
+        x="Company:N",
+        y="Count:Q",
+        color=alt.Color("Sentiment:N",
+                        scale=alt.Scale(domain=list(SENTIMENT_COLORS.keys()),
+                                        range=list(SENTIMENT_COLORS.values()))),
+        tooltip=["Company", "Sentiment", "Count"]
+    ).properties(title="Sentiment Comparison Across Companies")
+    st.altair_chart(chart, use_container_width=True)
+
+    # Pivot table for sentiment counts
+    pivot_df = agg.pivot(index="Company", columns="Sentiment", values="Count").fillna(0).astype(int)
+
+    # Add percentage column
+    pivot_df["Total"] = pivot_df.sum(axis=1)
+    # for sentiment in ["Positive", "Neutral", "Negative"]:
+    #     if sentiment in pivot_df.columns:
+    #         pivot_df[f"{sentiment} %"] = (pivot_df[sentiment] / pivot_df["Total"] * 100).round(1)
+
+    # Styler for color mapping
+    def highlight_sentiment(val, sentiment):
+        if sentiment == "Positive":
+            color = "#2ecc71"  # green
+        elif sentiment == "Neutral":
+            color = "#f1c40f"  # yellow
+        elif sentiment == "Negative":
+            color = "#e74c3c"  # red
+        else:
+            color = "white"
+        return f"background-color: {color}; color: black; font-weight: bold; text-align: right;"
+
+    styled = pivot_df.style.format("{:.0f}").applymap(
+        lambda v: highlight_sentiment(v, "Positive"), subset=["Positive"]
+    ).applymap(
+        lambda v: highlight_sentiment(v, "Neutral"), subset=["Neutral"]
+    ).applymap(
+        lambda v: highlight_sentiment(v, "Negative"), subset=["Negative"]
+    ).set_properties(**{"text-align": "right"}).set_table_styles(
+        [{"selector": "th", "props": [("text-align", "center"), ("font-weight", "bold")]}]
+    )
+
+    st.write("### 📊 Sentiment Table")
+    st.dataframe(styled, use_container_width=True)
+
+# -------------------------------
+# Display by Client (Phase 1 + Phase 2 Enhancements)
 # -------------------------------
 for client, articles in client_articles.items():
     if client not in selected_tags:
         continue
 
+    # apply filters
     if search_query:
         articles = [a for a in articles if search_query.lower() in a["title"].lower()]
 
@@ -188,12 +255,16 @@ for client, articles in client_articles.items():
     records = []
     for art in articles:
         sentiment, score = get_sentiment(art["summary"])
+        if sentiment not in sentiment_filter:
+            continue
         records.append({
             "Title": art["title"],
             "Sentiment": sentiment,
             "Score": score,
             "Published": art["published"]
         })
+    if not records:
+        continue
     df = pd.DataFrame(records)
 
     chart = (
@@ -215,9 +286,39 @@ for client, articles in client_articles.items():
     )
     st.altair_chart(chart, use_container_width=True)
 
-    # Articles with simple circle color
+    # -------------------------------
+    # Phase 2 – Deeper Insights
+    # -------------------------------
+    st.markdown("### 📈 Sentiment Trend Over Time")
+    if "Published" in df:
+        df["PublishedDate"] = pd.to_datetime(df["Published"], errors="coerce").dt.date
+        trend = df.groupby(["PublishedDate", "Sentiment"]).size().reset_index(name="Count")
+        trend_chart = alt.Chart(trend).mark_line(point=True).encode(
+            x="PublishedDate:T",
+            y="Count:Q",
+            color=alt.Color("Sentiment:N",
+                            scale=alt.Scale(domain=list(SENTIMENT_COLORS.keys()),
+                                            range=list(SENTIMENT_COLORS.values()))),
+            tooltip=["PublishedDate", "Sentiment", "Count"]
+        )
+        st.altair_chart(trend_chart, use_container_width=True)
+
+    st.markdown("### 🎯 Confidence Analysis")
+    scatter = alt.Chart(df).mark_circle(size=60).encode(
+        x="Score:Q",
+        y="Sentiment:N",
+        color=alt.Color("Sentiment:N",
+                        scale=alt.Scale(domain=list(SENTIMENT_COLORS.keys()),
+                                        range=list(SENTIMENT_COLORS.values()))),
+        tooltip=["Title", "Score", "Sentiment"]
+    )
+    st.altair_chart(scatter, use_container_width=True)
+
+    # Articles with sentiment circle
     for art in articles:
         sentiment, score = get_sentiment(art["summary"])
+        if sentiment not in sentiment_filter:
+            continue
         sentiment_circle = SENTIMENT_CIRCLES.get(sentiment, "⚪")
 
         with st.expander(f"{sentiment_circle} {art['title']} ({art['published']})"):
