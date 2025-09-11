@@ -146,9 +146,10 @@ def get_sentiment(text):
 st.title("🕵️ Sherlock Times – Live Client News Dashboard")
 
 # Last fetched info
+st.markdown(f"📅 **Today:** {datetime.now().strftime('%A, %d %B %Y')}")
 last_fetched = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 st.markdown(f"⏱ **Last Fetched:** {last_fetched}")
-st.markdown(f"📅 **Today:** {datetime.now().strftime('%A, %d %B %Y')}")
+
 
 # Fetch all articles
 client_articles = {}
@@ -215,3 +216,4 @@ for client, articles in client_articles.items():
                 st.image(img, width=600)
 
             st.markdown(f"[🔗 Read full article]({art['link']})")
+
