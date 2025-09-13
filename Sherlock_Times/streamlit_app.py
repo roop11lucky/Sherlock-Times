@@ -24,7 +24,10 @@ st_autorefresh(interval=refresh_seconds * 1000, key="dashboard_refresh")
 # -------------------------------
 # Load Companies from File
 # -------------------------------
-def load_companies(filename="companies.txt"):
+BASE_DIR = os.path.dirname(__file__)
+COMPANY_FILE = os.path.join(BASE_DIR, "data", "companies.txt")
+
+def load_companies(filename=COMPANY_FILE):
     entities, client_locations = [], {}
     if os.path.exists(filename):
         with open(filename, "r", encoding="utf-8") as f:
@@ -38,6 +41,8 @@ def load_companies(filename="companies.txt"):
                     name, loc = line, "Global"
                 entities.append(name.strip())
                 client_locations[name.strip()] = loc.strip()
+    else:
+        st.error(f"⚠️ File {filename} not found!")
     return entities, client_locations
 
 if "entities" not in st.session_state or "client_locations" not in st.session_state:
@@ -56,7 +61,7 @@ for client in st.session_state.entities:
         index=LOCATIONS.index(st.session_state.client_locations.get(client, "Global"))
     )
 
-# Add new company dynamically (persist only for current session)
+# Add new company dynamically (session only, not saved to file)
 new_entity = st.sidebar.text_input("➕ Add Company to Watchlist")
 if st.sidebar.button("Add") and new_entity:
     if new_entity not in st.session_state.entities:
