@@ -9,6 +9,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import pandas as pd
 import altair as alt
 import pytz
+import os
 
 # -------------------------------
 # Config
@@ -20,35 +21,32 @@ refresh_minutes = st.sidebar.selectbox("⏱ Refresh every:", [5, 15, 30, 60], in
 refresh_seconds = refresh_minutes * 60
 st_autorefresh(interval=refresh_seconds * 1000, key="dashboard_refresh")
 
-# Predefined entities (persistent watchlist)
-if "entities" not in st.session_state:
-    st.session_state.entities = [
-        "Google", 
-        "Synopsys", 
-        "Tiger Graph", 
-        "Meta", 
-        "Ideal Living Management LLC", 
-        "NewFold", 
-        "Cisco", 
-        "Gigamon"
-    ]
+# -------------------------------
+# Load Companies from File
+# -------------------------------
+def load_companies(filename="companies.txt"):
+    entities, client_locations = [], {}
+    if os.path.exists(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if "|" in line:
+                    name, loc = line.split("|", 1)
+                else:
+                    name, loc = line, "Global"
+                entities.append(name.strip())
+                client_locations[name.strip()] = loc.strip()
+    return entities, client_locations
+
+if "entities" not in st.session_state or "client_locations" not in st.session_state:
+    st.session_state.entities, st.session_state.client_locations = load_companies()
 
 # -------------------------------
-# Location Config
+# Location Options + Override
 # -------------------------------
 LOCATIONS = ["Global", "IN", "US"]
-
-if "client_locations" not in st.session_state:
-    st.session_state.client_locations = {
-        "Google": "IN",
-        "Synopsys": "US",
-        "Cisco": "US",
-        "Ideal Living Management LLC": "Global",
-        "Meta": "Global",
-        "Tiger Graph": "Global",
-        "NewFold": "Global",
-        "Gigamon": "Global"
-    }
 
 st.sidebar.subheader("🌍 Client Location Mapping")
 for client in st.session_state.entities:
@@ -58,13 +56,13 @@ for client in st.session_state.entities:
         index=LOCATIONS.index(st.session_state.client_locations.get(client, "Global"))
     )
 
-# Add new company to persistent watchlist
+# Add new company dynamically (persist only for current session)
 new_entity = st.sidebar.text_input("➕ Add Company to Watchlist")
 if st.sidebar.button("Add") and new_entity:
     if new_entity not in st.session_state.entities:
         st.session_state.entities.append(new_entity)
         st.session_state.client_locations[new_entity] = "Global"
-        st.success(f"Added {new_entity} to watchlist")
+        st.success(f"Added {new_entity} (not saved to file)")
     else:
         st.warning(f"{new_entity} already exists!")
 
