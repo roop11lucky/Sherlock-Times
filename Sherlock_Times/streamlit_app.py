@@ -159,6 +159,46 @@ st.markdown(f"⏱ **Last Fetched (IST):** {last_fetched}")
 st.markdown(f"📅 **Today:** {datetime.now(tz).strftime('%A, %d %B %Y')}")
 
 # -------------------------------
+# Fetch all client articles
+# -------------------------------
+client_articles = {}
+for entity in st.session_state.entities:
+    client_articles[entity] = fetch_news_rss(entity)
+
+# -------------------------------
+# Top-Level Summary Table (Clickable)
+# -------------------------------
+summary_records = []
+for client, articles in client_articles.items():
+    if not articles:
+        continue
+    pos = neu = neg = 0
+    for art in articles:
+        sentiment, _ = get_sentiment(art["summary"])
+        if sentiment == "Positive":
+            pos += 1
+        elif sentiment == "Negative":
+            neg += 1
+        else:
+            neu += 1
+    summary_records.append({
+        "Client": f"[{client}](#{client.replace(' ', '_')})",  # clickable link
+        "Location": st.session_state.client_locations.get(client, "Global"),
+        "Articles": len(articles),
+        "Positive": pos,
+        "Neutral": neu,
+        "Negative": neg,
+        "Last Updated": last_fetched
+    })
+
+if summary_records:
+    df_summary = pd.DataFrame(summary_records)
+    st.subheader("📊 Company Summary Table (click client name to jump)")
+    st.write(df_summary.to_markdown(index=False), unsafe_allow_html=True)
+
+st.markdown("---")
+
+# -------------------------------
 # Quick Search (One-time Company/Topic)
 # -------------------------------
 quick_search = st.text_input("🔍 Quick Search (One-time, not saved)")
@@ -190,10 +230,6 @@ st.markdown("---")
 # -------------------------------
 # Persistent Clients Section
 # -------------------------------
-client_articles = {}
-for entity in st.session_state.entities:
-    client_articles[entity] = fetch_news_rss(entity)
-
 selected_tags = st.sidebar.multiselect("🔖 Filter by Clients:", st.session_state.entities, default=st.session_state.entities)
 search_query = st.sidebar.text_input("🔍 Global Search (keywords)")
 
@@ -206,6 +242,9 @@ for client, articles in client_articles.items():
 
     if not articles:
         continue
+
+    # 👇 Anchor for clickable jump
+    st.markdown(f"<a name='{client.replace(' ', '_')}'></a>", unsafe_allow_html=True)
 
     st.header(f"🏢 {client} ({st.session_state.client_locations[client]})")
 
