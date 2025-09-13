@@ -25,7 +25,7 @@ st_autorefresh(interval=refresh_seconds * 1000, key="dashboard_refresh")
 # Load Companies from File
 # -------------------------------
 BASE_DIR = os.path.dirname(__file__)
-COMPANY_FILE = os.path.join(BASE_DIR, "data", "companies.txt")
+COMPANY_FILE = os.path.join(BASE_DIR, "companies.txt")
 
 def load_companies(filename=COMPANY_FILE):
     entities, client_locations = [], {}
@@ -284,3 +284,4 @@ for client, articles in client_articles.items():
                 st.image(img, width=600)
 
             st.markdown(f"[🔗 Read full article]({art['link']})")
+
