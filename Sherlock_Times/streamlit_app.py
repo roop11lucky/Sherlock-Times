@@ -16,10 +16,15 @@ import os
 # -------------------------------
 st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
 
-# Auto-refresh every X seconds
+# -------------------------------
+# Sidebar Global Filters
+# -------------------------------
 refresh_minutes = st.sidebar.selectbox("⏱ Refresh every:", [5, 15, 30, 60], index=1)
 refresh_seconds = refresh_minutes * 60
 st_autorefresh(interval=refresh_seconds * 1000, key="dashboard_refresh")
+
+override_loc = st.sidebar.selectbox("🌍 Override All Locations", ["Off", "Global", "IN", "US"], index=0)
+global_search = st.sidebar.text_input("🔍 Global Search (keywords)")
 
 # -------------------------------
 # File Paths
@@ -29,7 +34,7 @@ COMPANY_FILE = os.path.join(BASE_DIR, "data", "companies.txt")
 PERSON_FILE = os.path.join(BASE_DIR, "data", "persons.txt")
 
 # -------------------------------
-# Load Companies & Persons
+# Load Entities (Companies / Persons)
 # -------------------------------
 def load_entities(filename):
     entities, locations = [], {}
@@ -73,6 +78,9 @@ def clean_html(raw_html):
         return raw_html
 
 def fetch_news_rss(entity, loc="Global", max_results=10):
+    if override_loc != "Off":
+        loc = override_loc
+
     query = entity.replace(" ", "+")
     if loc == "IN":
         lang, gl, ceid = "en-IN", "IN", "IN:en"
@@ -145,15 +153,23 @@ tab1, tab2 = st.tabs(["🏢 Companies", "🧑 Persons"])
 with tab1:
     st.subheader("🏢 Company Dashboard")
 
+    selected_companies = st.multiselect(
+        "📌 Select Companies to Display",
+        st.session_state.entities,
+        default=st.session_state.entities
+    )
+
     # Fetch Articles
     client_articles = {}
-    for entity in st.session_state.entities:
+    for entity in selected_companies:
         loc = st.session_state.client_locations.get(entity, "Global")
         client_articles[entity] = fetch_news_rss(entity, loc)
 
     # Summary Table
     summary_records = []
     for client, articles in client_articles.items():
+        if global_search:
+            articles = [a for a in articles if global_search.lower() in a["title"].lower()]
         if not articles:
             continue
         pos = neu = neg = 0
@@ -175,24 +191,10 @@ with tab1:
         df_summary = pd.DataFrame(summary_records)
         st.write(df_summary.to_markdown(index=False), unsafe_allow_html=True)
 
-    # Quick Search
-    quick_search = st.text_input("🔍 Quick Search Company (One-time)")
-    if quick_search:
-        st.subheader(f"📢 Quick Results for: {quick_search}")
-        articles = fetch_news_rss(quick_search)
-        for art in articles:
-            sentiment, score = get_sentiment(art["summary"])
-            sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
-            with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
-                st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
-                st.write(art["summary"])
-                snippet, summary, img = fetch_article_preview(art["link"])
-                if summary: st.markdown("**📝 AI Summary:**"); st.write(summary)
-                if img: st.image(img, width=600)
-                st.markdown(f"[🔗 Read full article]({art['link']})")
-
     # Per-Company Sections
     for client, articles in client_articles.items():
+        if global_search:
+            articles = [a for a in articles if global_search.lower() in a["title"].lower()]
         if not articles:
             continue
         st.markdown(f"<a name='{client.replace(' ', '_')}'></a>", unsafe_allow_html=True)
@@ -226,15 +228,23 @@ with tab1:
 with tab2:
     st.subheader("🧑 Persons Dashboard")
 
+    selected_persons = st.multiselect(
+        "📌 Select Persons to Display",
+        st.session_state.persons,
+        default=st.session_state.persons
+    )
+
     # Fetch Articles
     person_articles = {}
-    for person in st.session_state.persons:
+    for person in selected_persons:
         loc = st.session_state.person_locations.get(person, "Global")
         person_articles[person] = fetch_news_rss(person, loc)
 
     # Summary Table
     summary_records = []
     for person, articles in person_articles.items():
+        if global_search:
+            articles = [a for a in articles if global_search.lower() in a["title"].lower()]
         if not articles:
             continue
         pos = neu = neg = 0
@@ -256,24 +266,10 @@ with tab2:
         df_summary = pd.DataFrame(summary_records)
         st.write(df_summary.to_markdown(index=False), unsafe_allow_html=True)
 
-    # Quick Search
-    quick_search_person = st.text_input("🔍 Quick Search Person (One-time)")
-    if quick_search_person:
-        st.subheader(f"📢 Quick Results for: {quick_search_person}")
-        articles = fetch_news_rss(quick_search_person)
-        for art in articles:
-            sentiment, score = get_sentiment(art["summary"])
-            sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
-            with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
-                st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
-                st.write(art["summary"])
-                snippet, summary, img = fetch_article_preview(art["link"])
-                if summary: st.markdown("**📝 AI Summary:**"); st.write(summary)
-                if img: st.image(img, width=600)
-                st.markdown(f"[🔗 Read full article]({art['link']})")
-
     # Per-Person Sections
     for person, articles in person_articles.items():
+        if global_search:
+            articles = [a for a in articles if global_search.lower() in a["title"].lower()]
         if not articles:
             continue
         st.markdown(f"<a name='{person.replace(' ', '_')}'></a>", unsafe_allow_html=True)
