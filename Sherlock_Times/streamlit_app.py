@@ -17,9 +17,11 @@ import os
 st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
 
 # -------------------------------
-# Top Filters (no sidebar anymore)
+# Top Filters (proper top row, no sidebar)
 # -------------------------------
-col1, col2, col3 = st.columns([1, 2, 2])
+st.markdown("### 🔧 Dashboard Controls")
+
+col1, col2, col3 = st.columns([1, 1, 2], gap="large")
 
 with col1:
     refresh_minutes = st.selectbox("⏱ Refresh every:", [5, 15, 30, 60], index=1)
@@ -30,7 +32,7 @@ with col2:
     override_loc = st.selectbox("🌍 Location Override", ["Off", "Global", "IN", "US"], index=0)
 
 with col3:
-    global_search = st.text_input("🔍 Global Search (applies to all)")
+    global_search = st.text_input("🔍 Global Search (applies to all)", placeholder="Type keyword...")
 
 # -------------------------------
 # File Paths
@@ -57,8 +59,6 @@ def load_entities(filename):
                 name, loc = name.strip(), loc.strip()
                 entities.append(name)
                 locations[name] = loc
-    else:
-        st.error(f"⚠️ File {filename} not found!")
     return entities, locations
 
 if "entities" not in st.session_state or "client_locations" not in st.session_state:
@@ -110,22 +110,9 @@ def fetch_news_rss(entity, loc="Global", max_results=10):
         })
     return articles
 
-def fetch_article_preview(url):
-    try:
-        article = Article(url)
-        article.download()
-        article.parse()
-        article.nlp()
-        snippet = article.text[:500] + "..." if article.text else None
-        summary = article.summary if article.summary else snippet
-        img = article.top_image
-        if img and ("gstatic" in img or "googleusercontent" in img):
-            img = None
-        return snippet, summary, img
-    except:
-        return None, None, None
-
+# -------------------------------
 # Sentiment
+# -------------------------------
 analyzer = SentimentIntensityAnalyzer()
 def get_sentiment(text):
     score = analyzer.polarity_scores(text)
@@ -156,7 +143,6 @@ tab1, tab2 = st.tabs(["🏢 Companies", "🧑 Persons"])
 with tab1:
     st.subheader("🏢 Company Dashboard")
 
-    # Fetch
     client_articles = {}
     for entity in st.session_state.entities:
         loc = st.session_state.client_locations.get(entity, "Global")
@@ -165,7 +151,7 @@ with tab1:
             arts = [a for a in arts if global_search.lower() in a["title"].lower()]
         client_articles[entity] = arts
 
-    # Summary Table
+    # Summary table
     summary_rows = []
     for client, arts in client_articles.items():
         if not arts: continue
@@ -190,9 +176,9 @@ with tab1:
         df_sum = pd.DataFrame(summary_rows)
         st.write(df_sum.to_markdown(index=False), unsafe_allow_html=True)
 
-        # ➕ Add new company input comes right after the table
-        new_company = st.text_input("➕ Add a new Company (session only)", key="new_company_input")
-        if st.button("Add Company", key="add_company_btn") and new_company:
+        # ➕ Add New Company right after table
+        new_company = st.text_input("➕ Add a new Company (session only)", key="company_input")
+        if st.button("Add Company", key="company_btn") and new_company:
             if new_company not in st.session_state.entities:
                 st.session_state.entities.append(new_company)
                 st.session_state.client_locations[new_company] = "Global"
@@ -200,29 +186,17 @@ with tab1:
             else:
                 st.warning(f"{new_company} already exists")
 
-    # Per-company
+    # Per-company sections
     for client, arts in client_articles.items():
         if not arts: continue
         st.markdown(f"<a name='{client.replace(' ', '_')}'></a>", unsafe_allow_html=True)
-        st.header(f"🏢 {client} ({st.session_state.client_locations.get(client, 'Global')})")
-
-        recs = [{"Title": a["title"], "Sentiment": get_sentiment(a["summary"])[0]} for a in arts]
-        df = pd.DataFrame(recs)
-        if not df.empty:
-            chart = alt.Chart(df).mark_arc().encode(
-                theta="count():Q", color="Sentiment:N"
-            ).properties(title=f"{client} Sentiment Distribution")
-            st.altair_chart(chart, use_container_width=True)
-
+        st.header(f"🏢 {client}")
         for a in arts:
             s, sc = get_sentiment(a["summary"])
             icon = "🟢" if s == "Positive" else "🔴" if s == "Negative" else "⚪"
             with st.expander(f"{icon} {a['title']} ({a['published']})"):
                 st.markdown(f"**Sentiment:** {s} ({sc:.2f})")
                 st.write(a["summary"])
-                snip, summ, img = fetch_article_preview(a["link"])
-                if summ: st.markdown("**📝 AI Summary:**"); st.write(summ)
-                if img:  st.image(img, width=600)
                 st.markdown(f"[🔗 Read full article]({a['link']})")
 
 # -------------------------------
@@ -231,7 +205,6 @@ with tab1:
 with tab2:
     st.subheader("🧑 Persons Dashboard")
 
-    # Fetch
     person_articles = {}
     for person in st.session_state.persons:
         loc = st.session_state.person_locations.get(person, "Global")
@@ -240,7 +213,6 @@ with tab2:
             arts = [a for a in arts if global_search.lower() in a["title"].lower()]
         person_articles[person] = arts
 
-    # Summary Table
     summary_rows = []
     for person, arts in person_articles.items():
         if not arts: continue
@@ -265,9 +237,9 @@ with tab2:
         df_sum = pd.DataFrame(summary_rows)
         st.write(df_sum.to_markdown(index=False), unsafe_allow_html=True)
 
-        # ➕ Add new person input comes right after the table
-        new_person = st.text_input("➕ Add a new Person (session only)", key="new_person_input")
-        if st.button("Add Person", key="add_person_btn") and new_person:
+        # ➕ Add New Person right after table
+        new_person = st.text_input("➕ Add a new Person (session only)", key="person_input")
+        if st.button("Add Person", key="person_btn") and new_person:
             if new_person not in st.session_state.persons:
                 st.session_state.persons.append(new_person)
                 st.session_state.person_locations[new_person] = "Global"
@@ -275,27 +247,14 @@ with tab2:
             else:
                 st.warning(f"{new_person} already exists")
 
-    # Per-person
     for person, arts in person_articles.items():
         if not arts: continue
         st.markdown(f"<a name='{person.replace(' ', '_')}'></a>", unsafe_allow_html=True)
-        st.header(f"🧑 {person} ({st.session_state.person_locations.get(person, 'Global')})")
-
-        recs = [{"Title": a["title"], "Sentiment": get_sentiment(a["summary"])[0]} for a in arts]
-        df = pd.DataFrame(recs)
-        if not df.empty:
-            chart = alt.Chart(df).mark_arc().encode(
-                theta="count():Q", color="Sentiment:N"
-            ).properties(title=f"{person} Sentiment Distribution")
-            st.altair_chart(chart, use_container_width=True)
-
+        st.header(f"🧑 {person}")
         for a in arts:
             s, sc = get_sentiment(a["summary"])
             icon = "🟢" if s == "Positive" else "🔴" if s == "Negative" else "⚪"
             with st.expander(f"{icon} {a['title']} ({a['published']})"):
                 st.markdown(f"**Sentiment:** {s} ({sc:.2f})")
                 st.write(a["summary"])
-                snip, summ, img = fetch_article_preview(a["link"])
-                if summ: st.markdown("**📝 AI Summary:**"); st.write(summ)
-                if img:  st.image(img, width=600)
                 st.markdown(f"[🔗 Read full article]({a['link']})")
