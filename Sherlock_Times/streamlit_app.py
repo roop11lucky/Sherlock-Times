@@ -22,13 +22,17 @@ refresh_seconds = refresh_minutes * 60
 st_autorefresh(interval=refresh_seconds * 1000, key="dashboard_refresh")
 
 # -------------------------------
-# Load Companies from File
+# File Paths
 # -------------------------------
 BASE_DIR = os.path.dirname(__file__)
-COMPANY_FILE = os.path.join(BASE_DIR, "companies.txt")
+COMPANY_FILE = os.path.join(BASE_DIR, "data", "companies.txt")
+PERSON_FILE = os.path.join(BASE_DIR, "data", "persons.txt")
 
-def load_companies(filename=COMPANY_FILE):
-    entities, client_locations = [], {}
+# -------------------------------
+# Load Companies & Persons
+# -------------------------------
+def load_entities(filename):
+    entities, locations = [], {}
     if os.path.exists(filename):
         with open(filename, "r", encoding="utf-8") as f:
             for line in f:
@@ -40,39 +44,16 @@ def load_companies(filename=COMPANY_FILE):
                 else:
                     name, loc = line, "Global"
                 entities.append(name.strip())
-                client_locations[name.strip()] = loc.strip()
+                locations[name.strip()] = loc.strip()
     else:
         st.error(f"⚠️ File {filename} not found!")
-    return entities, client_locations
+    return entities, locations
 
 if "entities" not in st.session_state or "client_locations" not in st.session_state:
-    st.session_state.entities, st.session_state.client_locations = load_companies()
+    st.session_state.entities, st.session_state.client_locations = load_entities(COMPANY_FILE)
 
-# -------------------------------
-# Location Options + Override
-# -------------------------------
-LOCATIONS = ["Global", "IN", "US"]
-
-st.sidebar.subheader("🌍 Client Location Mapping")
-for client in st.session_state.entities:
-    st.session_state.client_locations[client] = st.sidebar.selectbox(
-        f"{client} Location",
-        LOCATIONS,
-        index=LOCATIONS.index(st.session_state.client_locations.get(client, "Global"))
-    )
-
-# Add new company dynamically (session only, not saved to file)
-new_entity = st.sidebar.text_input("➕ Add Company to Watchlist")
-if st.sidebar.button("Add") and new_entity:
-    if new_entity not in st.session_state.entities:
-        st.session_state.entities.append(new_entity)
-        st.session_state.client_locations[new_entity] = "Global"
-        st.success(f"Added {new_entity} (not saved to file)")
-    else:
-        st.warning(f"{new_entity} already exists!")
-
-# Global override
-override_loc = st.sidebar.selectbox("🌐 Override All Locations", ["Off", "Global", "IN", "US"], index=0)
+if "persons" not in st.session_state or "person_locations" not in st.session_state:
+    st.session_state.persons, st.session_state.person_locations = load_entities(PERSON_FILE)
 
 # -------------------------------
 # Helper Functions
@@ -91,15 +72,8 @@ def clean_html(raw_html):
     except:
         return raw_html
 
-def fetch_news_rss(entity, max_results=10):
+def fetch_news_rss(entity, loc="Global", max_results=10):
     query = entity.replace(" ", "+")
-    
-    # Location handling
-    if override_loc != "Off":
-        loc = override_loc
-    else:
-        loc = st.session_state.client_locations.get(entity, "Global")
-
     if loc == "IN":
         lang, gl, ceid = "en-IN", "IN", "IN:en"
     elif loc == "US":
@@ -153,135 +127,176 @@ def get_sentiment(text):
 # -------------------------------
 # Dashboard Header
 # -------------------------------
-st.title("🕵️ Sherlock Times – Live Client News Dashboard")
+st.title("🕵️ Sherlock Times – Live News Dashboard")
 
-# Always show last fetched in IST
 tz = pytz.timezone("Asia/Kolkata")
 last_fetched = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
 st.markdown(f"⏱ **Last Fetched (IST):** {last_fetched}")
 st.markdown(f"📅 **Today:** {datetime.now(tz).strftime('%A, %d %B %Y')}")
 
 # -------------------------------
-# Fetch all client articles
+# Tabs: Companies & Persons
 # -------------------------------
-client_articles = {}
-for entity in st.session_state.entities:
-    client_articles[entity] = fetch_news_rss(entity)
+tab1, tab2 = st.tabs(["🏢 Companies", "🧑 Persons"])
 
 # -------------------------------
-# Top-Level Summary Table (Clickable)
+# Tab 1: Companies
 # -------------------------------
-summary_records = []
-for client, articles in client_articles.items():
-    if not articles:
-        continue
-    pos = neu = neg = 0
-    for art in articles:
-        sentiment, _ = get_sentiment(art["summary"])
-        if sentiment == "Positive":
-            pos += 1
-        elif sentiment == "Negative":
-            neg += 1
-        else:
-            neu += 1
-    summary_records.append({
-        "Client": f"[{client}](#{client.replace(' ', '_')})",  # clickable link
-        "Location": st.session_state.client_locations.get(client, "Global"),
-        "Articles": len(articles),
-        "Positive": pos,
-        "Neutral": neu,
-        "Negative": neg,
-        "Last Updated": last_fetched
-    })
+with tab1:
+    st.subheader("🏢 Company Dashboard")
 
-if summary_records:
-    df_summary = pd.DataFrame(summary_records)
-    st.subheader("📊 Company Summary Table (click client name to jump)")
-    st.write(df_summary.to_markdown(index=False), unsafe_allow_html=True)
+    # Fetch Articles
+    client_articles = {}
+    for entity in st.session_state.entities:
+        loc = st.session_state.client_locations.get(entity, "Global")
+        client_articles[entity] = fetch_news_rss(entity, loc)
 
-st.markdown("---")
+    # Summary Table
+    summary_records = []
+    for client, articles in client_articles.items():
+        if not articles:
+            continue
+        pos = neu = neg = 0
+        for art in articles:
+            sentiment, _ = get_sentiment(art["summary"])
+            if sentiment == "Positive": pos += 1
+            elif sentiment == "Negative": neg += 1
+            else: neu += 1
+        summary_records.append({
+            "Client": f"[{client}](#{client.replace(' ', '_')})",
+            "Location": st.session_state.client_locations.get(client, "Global"),
+            "Articles": len(articles),
+            "Positive": pos,
+            "Neutral": neu,
+            "Negative": neg,
+            "Last Updated": last_fetched
+        })
+    if summary_records:
+        df_summary = pd.DataFrame(summary_records)
+        st.write(df_summary.to_markdown(index=False), unsafe_allow_html=True)
+
+    # Quick Search
+    quick_search = st.text_input("🔍 Quick Search Company (One-time)")
+    if quick_search:
+        st.subheader(f"📢 Quick Results for: {quick_search}")
+        articles = fetch_news_rss(quick_search)
+        for art in articles:
+            sentiment, score = get_sentiment(art["summary"])
+            sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
+            with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
+                st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
+                st.write(art["summary"])
+                snippet, summary, img = fetch_article_preview(art["link"])
+                if summary: st.markdown("**📝 AI Summary:**"); st.write(summary)
+                if img: st.image(img, width=600)
+                st.markdown(f"[🔗 Read full article]({art['link']})")
+
+    # Per-Company Sections
+    for client, articles in client_articles.items():
+        if not articles:
+            continue
+        st.markdown(f"<a name='{client.replace(' ', '_')}'></a>", unsafe_allow_html=True)
+        st.header(f"🏢 {client} ({st.session_state.client_locations[client]})")
+
+        records = []
+        for art in articles:
+            sentiment, score = get_sentiment(art["summary"])
+            records.append({"Title": art["title"], "Sentiment": sentiment, "Score": score})
+        df = pd.DataFrame(records)
+        if not df.empty:
+            chart = alt.Chart(df).mark_arc().encode(
+                theta="count():Q", color="Sentiment:N"
+            ).properties(title=f"{client} Sentiment Distribution")
+            st.altair_chart(chart, use_container_width=True)
+
+        for art in articles:
+            sentiment, score = get_sentiment(art["summary"])
+            sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
+            with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
+                st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
+                st.write(art["summary"])
+                snippet, summary, img = fetch_article_preview(art["link"])
+                if summary: st.markdown("**📝 AI Summary:**"); st.write(summary)
+                if img: st.image(img, width=600)
+                st.markdown(f"[🔗 Read full article]({art['link']})")
 
 # -------------------------------
-# Quick Search (One-time Company/Topic)
+# Tab 2: Persons
 # -------------------------------
-quick_search = st.text_input("🔍 Quick Search (One-time, not saved)")
-if quick_search:
-    st.subheader(f"📢 Quick Results for: {quick_search}")
-    articles = fetch_news_rss(quick_search)
-    for art in articles:
-        sentiment, score = get_sentiment(art["summary"])
-        sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
+with tab2:
+    st.subheader("🧑 Persons Dashboard")
 
-        with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
-            st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
-            st.write(art["summary"])
+    # Fetch Articles
+    person_articles = {}
+    for person in st.session_state.persons:
+        loc = st.session_state.person_locations.get(person, "Global")
+        person_articles[person] = fetch_news_rss(person, loc)
 
-            snippet, summary, img = fetch_article_preview(art["link"])
-            if summary:
-                st.markdown("**📝 AI Summary:**")
-                st.write(summary)
-            if snippet:
-                st.markdown("**📄 Snippet:**")
-                st.write(snippet)
-            if img:
-                st.image(img, width=600)
+    # Summary Table
+    summary_records = []
+    for person, articles in person_articles.items():
+        if not articles:
+            continue
+        pos = neu = neg = 0
+        for art in articles:
+            sentiment, _ = get_sentiment(art["summary"])
+            if sentiment == "Positive": pos += 1
+            elif sentiment == "Negative": neg += 1
+            else: neu += 1
+        summary_records.append({
+            "Person": f"[{person}](#{person.replace(' ', '_')})",
+            "Location": st.session_state.person_locations.get(person, "Global"),
+            "Articles": len(articles),
+            "Positive": pos,
+            "Neutral": neu,
+            "Negative": neg,
+            "Last Updated": last_fetched
+        })
+    if summary_records:
+        df_summary = pd.DataFrame(summary_records)
+        st.write(df_summary.to_markdown(index=False), unsafe_allow_html=True)
 
-            st.markdown(f"[🔗 Read full article]({art['link']})")
+    # Quick Search
+    quick_search_person = st.text_input("🔍 Quick Search Person (One-time)")
+    if quick_search_person:
+        st.subheader(f"📢 Quick Results for: {quick_search_person}")
+        articles = fetch_news_rss(quick_search_person)
+        for art in articles:
+            sentiment, score = get_sentiment(art["summary"])
+            sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
+            with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
+                st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
+                st.write(art["summary"])
+                snippet, summary, img = fetch_article_preview(art["link"])
+                if summary: st.markdown("**📝 AI Summary:**"); st.write(summary)
+                if img: st.image(img, width=600)
+                st.markdown(f"[🔗 Read full article]({art['link']})")
 
-st.markdown("---")
+    # Per-Person Sections
+    for person, articles in person_articles.items():
+        if not articles:
+            continue
+        st.markdown(f"<a name='{person.replace(' ', '_')}'></a>", unsafe_allow_html=True)
+        st.header(f"🧑 {person} ({st.session_state.person_locations[person]})")
 
-# -------------------------------
-# Persistent Clients Section
-# -------------------------------
-selected_tags = st.sidebar.multiselect("🔖 Filter by Clients:", st.session_state.entities, default=st.session_state.entities)
-search_query = st.sidebar.text_input("🔍 Global Search (keywords)")
+        records = []
+        for art in articles:
+            sentiment, score = get_sentiment(art["summary"])
+            records.append({"Title": art["title"], "Sentiment": sentiment, "Score": score})
+        df = pd.DataFrame(records)
+        if not df.empty:
+            chart = alt.Chart(df).mark_arc().encode(
+                theta="count():Q", color="Sentiment:N"
+            ).properties(title=f"{person} Sentiment Distribution")
+            st.altair_chart(chart, use_container_width=True)
 
-for client, articles in client_articles.items():
-    if client not in selected_tags:
-        continue
-
-    if search_query:
-        articles = [a for a in articles if search_query.lower() in a["title"].lower()]
-
-    if not articles:
-        continue
-
-    # 👇 Anchor for clickable jump
-    st.markdown(f"<a name='{client.replace(' ', '_')}'></a>", unsafe_allow_html=True)
-
-    st.header(f"🏢 {client} ({st.session_state.client_locations[client]})")
-
-    # Sentiment pie chart
-    records = []
-    for art in articles:
-        sentiment, score = get_sentiment(art["summary"])
-        records.append({"Title": art["title"], "Sentiment": sentiment, "Score": score, "Published": art["published"]})
-    df = pd.DataFrame(records)
-
-    chart = alt.Chart(df).mark_arc().encode(
-        theta="count():Q",
-        color="Sentiment:N"
-    ).properties(title=f"{client} Sentiment Distribution")
-    st.altair_chart(chart, use_container_width=True)
-
-    # Articles
-    for art in articles:
-        sentiment, score = get_sentiment(art["summary"])
-        sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
-
-        with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
-            st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
-            st.write(art["summary"])
-
-            snippet, summary, img = fetch_article_preview(art["link"])
-            if summary:
-                st.markdown("**📝 AI Summary:**")
-                st.write(summary)
-            if snippet:
-                st.markdown("**📄 Snippet:**")
-                st.write(snippet)
-            if img:
-                st.image(img, width=600)
-
-            st.markdown(f"[🔗 Read full article]({art['link']})")
-
+        for art in articles:
+            sentiment, score = get_sentiment(art["summary"])
+            sentiment_icon = "🟢" if sentiment == "Positive" else "🔴" if sentiment == "Negative" else "⚪"
+            with st.expander(f"{sentiment_icon} {art['title']} ({art['published']})"):
+                st.markdown(f"**Sentiment:** {sentiment} ({score:.2f})")
+                st.write(art["summary"])
+                snippet, summary, img = fetch_article_preview(art["link"])
+                if summary: st.markdown("**📝 AI Summary:**"); st.write(summary)
+                if img: st.image(img, width=600)
+                st.markdown(f"[🔗 Read full article]({art['link']})")
