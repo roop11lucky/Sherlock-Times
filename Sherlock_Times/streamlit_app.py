@@ -17,7 +17,7 @@ import os
 st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
 
 # -------------------------------
-# Top Filters (instead of sidebar)
+# Top Filters (no sidebar anymore)
 # -------------------------------
 col1, col2, col3 = st.columns([1, 2, 2])
 
@@ -184,20 +184,21 @@ with tab1:
             "Negative": neg,
             "Last Updated": last_fetched
         })
+
     if summary_rows:
         st.subheader("📊 Companies Summary")
         df_sum = pd.DataFrame(summary_rows)
         st.write(df_sum.to_markdown(index=False), unsafe_allow_html=True)
 
-    # ➕ Add new company (session only)
-    new_company = st.text_input("➕ Add a new Company (session only)")
-    if st.button("Add Company") and new_company:
-        if new_company not in st.session_state.entities:
-            st.session_state.entities.append(new_company)
-            st.session_state.client_locations[new_company] = "Global"
-            st.success(f"Added {new_company} to session watchlist")
-        else:
-            st.warning(f"{new_company} already exists")
+        # ➕ Add new company input comes right after the table
+        new_company = st.text_input("➕ Add a new Company (session only)", key="new_company_input")
+        if st.button("Add Company", key="add_company_btn") and new_company:
+            if new_company not in st.session_state.entities:
+                st.session_state.entities.append(new_company)
+                st.session_state.client_locations[new_company] = "Global"
+                st.success(f"Added {new_company} to session watchlist")
+            else:
+                st.warning(f"{new_company} already exists")
 
     # Per-company
     for client, arts in client_articles.items():
@@ -258,20 +259,21 @@ with tab2:
             "Negative": neg,
             "Last Updated": last_fetched
         })
+
     if summary_rows:
         st.subheader("📊 Persons Summary")
         df_sum = pd.DataFrame(summary_rows)
         st.write(df_sum.to_markdown(index=False), unsafe_allow_html=True)
 
-    # ➕ Add new person (session only)
-    new_person = st.text_input("➕ Add a new Person (session only)")
-    if st.button("Add Person") and new_person:
-        if new_person not in st.session_state.persons:
-            st.session_state.persons.append(new_person)
-            st.session_state.person_locations[new_person] = "Global"
-            st.success(f"Added {new_person} to session watchlist")
-        else:
-            st.warning(f"{new_person} already exists")
+        # ➕ Add new person input comes right after the table
+        new_person = st.text_input("➕ Add a new Person (session only)", key="new_person_input")
+        if st.button("Add Person", key="add_person_btn") and new_person:
+            if new_person not in st.session_state.persons:
+                st.session_state.persons.append(new_person)
+                st.session_state.person_locations[new_person] = "Global"
+                st.success(f"Added {new_person} to session watchlist")
+            else:
+                st.warning(f"{new_person} already exists")
 
     # Per-person
     for person, arts in person_articles.items():
