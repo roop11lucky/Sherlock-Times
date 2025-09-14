@@ -126,7 +126,7 @@ def get_sentiment(text):
 # -------------------------------
 # Header
 # -------------------------------
-st.title("🕵️ Sherlock Times – Live News Dashboard")
+st.title("🕵️ Sherlock Times – Live News Dashboardss")
 tz = pytz.timezone("Asia/Kolkata")
 last_fetched = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
 st.markdown(f"⏱ **Last Fetched (IST):** {last_fetched}")
@@ -258,3 +258,4 @@ with tab2:
                 st.markdown(f"**Sentiment:** {s} ({sc:.2f})")
                 st.write(a["summary"])
                 st.markdown(f"[🔗 Read full article]({a['link']})")
+
