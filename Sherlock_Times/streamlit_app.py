@@ -4,8 +4,6 @@ from datetime import datetime
 from typing import Dict, List, Any, Tuple
 
 import streamlit as st
-import pandas as pd
-import altair as alt
 import feedparser
 import requests
 from bs4 import BeautifulSoup
@@ -19,15 +17,7 @@ st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wid
 
 APP_TITLE = "🕵️ Sherlock Times – Company & Person News Dashboard"
 DATA_PATH = os.path.join("data", "app_state.json")
-
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "sherlock-admin-123")
-
-# Optional finance
-try:
-    import yfinance as yf
-    HAS_YFIN = True
-except Exception:
-    HAS_YFIN = False
 
 analyzer = SentimentIntensityAnalyzer()
 
@@ -36,22 +26,8 @@ analyzer = SentimentIntensityAnalyzer()
 # ---------------------------
 DEFAULT_STATE = {
     "companies": [
-        {
-            "name": "Google",
-            "location": "IN",
-            "ticker": "GOOGL",
-            "careers_url": "https://careers.google.com/",
-            "website": "https://about.google/",
-            "competitors": ["Microsoft", "Amazon"]
-        },
-        {
-            "name": "Microsoft",
-            "location": "US",
-            "ticker": "MSFT",
-            "careers_url": "https://careers.microsoft.com/",
-            "website": "https://www.microsoft.com/",
-            "competitors": ["Google", "Amazon"]
-        }
+        {"name": "Google", "location": "IN"},
+        {"name": "Microsoft", "location": "US"}
     ],
     "persons": [
         {"name": "Sundar Pichai", "company": "Google"},
@@ -67,15 +43,14 @@ def load_state() -> Dict[str, Any]:
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     if not os.path.exists(DATA_PATH):
         save_state(DEFAULT_STATE)
-        return json.loads(json.dumps(DEFAULT_STATE))
+        return DEFAULT_STATE
 
     with open(DATA_PATH, "r", encoding="utf-8") as f:
         state = json.load(f)
 
-    # Auto-seed if empty
     if not state.get("companies") and not state.get("persons"):
         save_state(DEFAULT_STATE)
-        return json.loads(json.dumps(DEFAULT_STATE))
+        return DEFAULT_STATE
 
     return state
 
@@ -170,7 +145,7 @@ if "is_admin" not in st.session_state:
 # ---------------------------
 st.title(APP_TITLE)
 
-colA, colB = st.columns([1, 5])
+colA, colB, colC = st.columns([1, 5, 1])
 with colA:
     refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0,
                                    help="0 = No auto-refresh")
@@ -181,13 +156,32 @@ with colB:
     tz_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.caption(f"⏱ Last Fetched: {tz_now}")
 
+with colC:
+    if not st.session_state.is_admin:
+        if st.button("🔐 Admin Login"):
+            pwd = st.text_input("Enter Admin Password", type="password")
+            if pwd == ADMIN_PASSWORD:
+                st.session_state.is_admin = True
+                st.success("✅ Admin login successful! Refresh tabs below.")
+    else:
+        if st.button("🚪 Logout"):
+            st.session_state.is_admin = False
+            st.success("Logged out")
+
 st.markdown("---")
 
 # ---------------------------
 # Tabs
 # ---------------------------
-tab_persons, tab_companies = st.tabs(["🧑 Persons", "🏢 Companies"])
+if st.session_state.is_admin:
+    tab_persons, tab_companies, tab_admin = st.tabs(["🧑 Persons", "🏢 Companies", "⚙️ Admin"])
+else:
+    tab_persons, tab_companies = st.tabs(["🧑 Persons", "🏢 Companies"])
+    tab_admin = None
 
+# ---------------------------
+# Tab 1: Persons
+# ---------------------------
 with tab_persons:
     persons = st.session_state.state.get("persons", [])
     st.subheader("Latest News about People")
@@ -198,6 +192,9 @@ with tab_persons:
             person_news += google_news_rss(f'{p["name"]} {p["company"]}', region="Global", max_results=6)
     render_tiles(person_news, cols=3)
 
+# ---------------------------
+# Tab 2: Companies
+# ---------------------------
 with tab_companies:
     companies = st.session_state.state.get("companies", [])
     st.subheader("Global News (All Companies)")
@@ -205,3 +202,38 @@ with tab_companies:
     for c in companies:
         all_news += google_news_rss(c["name"], region=c.get("location", "Global"), max_results=6)
     render_tiles(all_news, cols=3)
+
+# ---------------------------
+# Tab 3: Admin
+# ---------------------------
+if tab_admin:
+    with tab_admin:
+        st.subheader("⚙️ Admin Panel")
+
+        # Manage Companies
+        st.markdown("### 🏢 Manage Companies")
+        comp_name = st.text_input("Company Name")
+        comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
+        if st.button("Add Company"):
+            st.session_state.state["companies"].append({"name": comp_name, "location": comp_loc})
+            save_state(st.session_state.state)
+            st.success(f"Added {comp_name} ({comp_loc})")
+
+        if st.session_state.state["companies"]:
+            st.write("Current Companies:")
+            for c in st.session_state.state["companies"]:
+                st.write(f"- {c['name']} ({c['location']})")
+
+        # Manage Persons
+        st.markdown("### 🧑 Manage Persons")
+        person_name = st.text_input("Person Name")
+        company_link = st.text_input("Associated Company")
+        if st.button("Add Person"):
+            st.session_state.state["persons"].append({"name": person_name, "company": company_link})
+            save_state(st.session_state.state)
+            st.success(f"Added {person_name} (Company: {company_link})")
+
+        if st.session_state.state["persons"]:
+            st.write("Current Persons:")
+            for p in st.session_state.state["persons"]:
+                st.write(f"- {p['name']} (Company: {p.get('company','-')})")
