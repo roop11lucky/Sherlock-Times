@@ -1,261 +1,177 @@
-import streamlit as st
-import feedparser
+import os
+import json
 from datetime import datetime
-from streamlit_autorefresh import st_autorefresh
-from newspaper import Article
+from typing import Dict, List, Any, Tuple
+
+import streamlit as st
+import pandas as pd
+import altair as alt
+import feedparser
 import requests
 from bs4 import BeautifulSoup
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-import pandas as pd
-import altair as alt
-import pytz
-import os
+from streamlit_autorefresh import st_autorefresh
 
-# -------------------------------
-# Config
-# -------------------------------
+# ---------------------------
+# App Config
+# ---------------------------
 st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
 
-# -------------------------------
-# Top Filters (proper top row, no sidebar)
-# -------------------------------
-st.markdown("### 🔧 Dashboard Controls")
+APP_TITLE = "🕵️ Sherlock Times – Company & Person News Dashboard"
+DATA_PATH = os.path.join("data", "app_state.json")
 
-col1, col2, col3 = st.columns([1, 1, 2], gap="large")
+# Hardcoded admin password (or set env var ADMIN_PASSWORD)
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "sherlock-admin-123")
 
-with col1:
-    refresh_minutes = st.selectbox("⏱ Refresh every:", [5, 15, 30, 60], index=1)
-    refresh_seconds = refresh_minutes * 60
-    st_autorefresh(interval=refresh_seconds * 1000, key="dashboard_refresh")
+# (Optional) Finance via yfinance
+try:
+    import yfinance as yf
+    HAS_YFIN = True
+except Exception:
+    HAS_YFIN = False
 
-with col2:
-    override_loc = st.selectbox("🌍 Location Override", ["Off", "Global", "IN", "US"], index=0)
-
-with col3:
-    global_search = st.text_input("🔍 Global Search (applies to all)", placeholder="Type keyword...")
-
-# -------------------------------
-# File Paths
-# -------------------------------
-BASE_DIR = os.path.dirname(__file__)
-COMPANY_FILE = os.path.join(BASE_DIR, "data", "companies.txt")
-PERSON_FILE  = os.path.join(BASE_DIR, "data", "persons.txt")
-
-# -------------------------------
-# Load Entities
-# -------------------------------
-def load_entities(filename):
-    entities, locations = [], {}
-    if os.path.exists(filename):
-        with open(filename, "r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line:
-                    continue
-                if "|" in line:
-                    name, loc = line.split("|", 1)
-                else:
-                    name, loc = line, "Global"
-                name, loc = name.strip(), loc.strip()
-                entities.append(name)
-                locations[name] = loc
-    return entities, locations
-
-if "entities" not in st.session_state or "client_locations" not in st.session_state:
-    st.session_state.entities, st.session_state.client_locations = load_entities(COMPANY_FILE)
-
-if "persons" not in st.session_state or "person_locations" not in st.session_state:
-    st.session_state.persons, st.session_state.person_locations = load_entities(PERSON_FILE)
-
-# -------------------------------
-# Helpers
-# -------------------------------
-def resolve_redirect(url):
-    try:
-        r = requests.get(url, allow_redirects=True, timeout=5)
-        return r.url
-    except:
-        return url
-
-def clean_html(raw_html):
-    try:
-        soup = BeautifulSoup(raw_html, "html.parser")
-        return soup.get_text()
-    except:
-        return raw_html
-
-def fetch_news_rss(entity, loc="Global", max_results=10):
-    if override_loc != "Off":
-        loc = override_loc
-    query = entity.replace(" ", "+")
-    if loc == "IN":
-        lang, gl, ceid = "en-IN", "IN", "IN:en"
-    elif loc == "US":
-        lang, gl, ceid = "en-US", "US", "US:en"
-    else:
-        lang, gl, ceid = "en", "US", "US:en"
-    url = f"https://news.google.com/rss/search?q={query}&hl={lang}&gl={gl}&ceid={ceid}"
-    feed = feedparser.parse(url)
-    articles = []
-    for entry in feed.entries[:max_results]:
-        real_url = resolve_redirect(entry.link)
-        summary = clean_html(entry.get("summary", ""))
-        articles.append({
-            "title": entry.title,
-            "link": real_url,
-            "published": entry.published,
-            "tags": [entity],
-            "summary": summary[:500],
-            "location": loc
-        })
-    return articles
-
-# -------------------------------
-# Sentiment
-# -------------------------------
 analyzer = SentimentIntensityAnalyzer()
-def get_sentiment(text):
-    score = analyzer.polarity_scores(text)
-    c = score["compound"]
+
+
+# ---------------------------
+# Storage
+# ---------------------------
+DEFAULT_STATE = {"companies": [], "persons": []}
+
+
+def load_state() -> Dict[str, Any]:
+    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+    if not os.path.exists(DATA_PATH):
+        save_state(DEFAULT_STATE)
+        return json.loads(json.dumps(DEFAULT_STATE))
+    with open(DATA_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_state(state: Dict[str, Any]) -> None:
+    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+    with open(DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, ensure_ascii=False)
+
+
+# ---------------------------
+# Helpers
+# ---------------------------
+def google_news_rss(query: str, region: str = "Global", max_results: int = 12) -> List[Dict[str, Any]]:
+    """Get news via Google News RSS."""
+    q = requests.utils.quote(query)
+    if region == "IN":
+        hl, gl, ceid = "en-IN", "IN", "IN:en"
+    elif region == "US":
+        hl, gl, ceid = "en-US", "US", "US:en"
+    else:
+        hl, gl, ceid = "en", "US", "US:en"
+
+    url = f"https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={ceid}"
+    feed = feedparser.parse(url)
+    items = []
+    for e in feed.entries[:max_results]:
+        items.append({
+            "title": e.title,
+            "link": e.link,
+            "published": getattr(e, "published", ""),
+            "summary": BeautifulSoup(getattr(e, "summary", ""), "html.parser").get_text()
+        })
+    return items
+
+
+def sentiment(text: str) -> Tuple[str, float]:
+    s = analyzer.polarity_scores(text or "")
+    c = s["compound"]
     if c >= 0.05:
         return "Positive", c
-    elif c <= -0.05:
+    if c <= -0.05:
         return "Negative", c
     return "Neutral", c
 
-# -------------------------------
-# Header
-# -------------------------------
-st.title("🕵️ Sherlock Times – Live News Dashboardss")
-tz = pytz.timezone("Asia/Kolkata")
-last_fetched = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
-st.markdown(f"⏱ **Last Fetched (IST):** {last_fetched}")
-st.markdown(f"📅 **Today:** {datetime.now(tz).strftime('%A, %d %B %Y')}")
 
-# -------------------------------
+def badge_for_sentiment(label: str) -> str:
+    colors = {"Positive": "#22c55e", "Neutral": "#64748b", "Negative": "#ef4444"}
+    return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
+
+
+def render_tiles(items: List[Dict[str, Any]], cols: int = 3):
+    """Render a responsive grid of tiles."""
+    if not items:
+        st.info("No items found.")
+        return
+    for i in range(0, len(items), cols):
+        row = st.columns(cols)
+        for j, card in enumerate(items[i:i + cols]):
+            with row[j]:
+                title = card.get("title", "Untitled")
+                summ = (card.get("summary") or "").strip()
+                sent, score = sentiment(f"{title}. {summ}")
+                st.markdown(
+                    f"""
+<div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px;height:100%;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div style="font-weight:600;font-size:15px;line-height:1.3;">{title}</div>
+    <div>{badge_for_sentiment(sent)}</div>
+  </div>
+  <div style="color:#475569;font-size:13px;min-height:52px;">{summ[:220] + ('…' if len(summ)>220 else '')}</div>
+  <div style="margin-top:10px;font-size:12px;color:#64748b;">
+    {card.get('published','')}
+  </div>
+  <div style="margin-top:8px;">
+    <a href="{card.get('link','#')}" target="_blank" style="text-decoration:none;background:#0ea5e9;color:white;padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
+  </div>
+</div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+
+# ---------------------------
+# Session & State
+# ---------------------------
+if "state" not in st.session_state:
+    st.session_state.state = load_state()
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
+
+# ---------------------------
+# Header + Auto-refresh
+# ---------------------------
+st.title(APP_TITLE)
+
+colA, colB = st.columns([1, 5])
+with colA:
+    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0,
+                                   help="0 = No auto-refresh")
+    if refresh_minutes > 0:
+        st_autorefresh(interval=refresh_minutes * 60 * 1000, key="auto_refresh")
+
+with colB:
+    tz_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.caption(f"⏱ Last Fetched: {tz_now}")
+
+st.markdown("---")
+
+# ---------------------------
 # Tabs
-# -------------------------------
-tab1, tab2 = st.tabs(["🏢 Companies", "🧑 Persons"])
+# ---------------------------
+tab_persons, tab_companies = st.tabs(["🧑 Persons", "🏢 Companies"])
 
-# -------------------------------
-# Tab 1: Companies
-# -------------------------------
-with tab1:
-    st.subheader("🏢 Company Dashboard")
+with tab_persons:
+    persons = st.session_state.state.get("persons", [])
+    st.subheader("Latest News about People")
+    person_news = []
+    for p in persons:
+        person_news += google_news_rss(p["name"], region="Global", max_results=6)
+        if p.get("company"):
+            person_news += google_news_rss(f'{p["name"]} {p["company"]}', region="Global", max_results=6)
+    render_tiles(person_news, cols=3)
 
-    client_articles = {}
-    for entity in st.session_state.entities:
-        loc = st.session_state.client_locations.get(entity, "Global")
-        arts = fetch_news_rss(entity, loc)
-        if global_search:
-            arts = [a for a in arts if global_search.lower() in a["title"].lower()]
-        client_articles[entity] = arts
-
-    # Summary table
-    summary_rows = []
-    for client, arts in client_articles.items():
-        if not arts: continue
-        pos = neu = neg = 0
-        for a in arts:
-            s, _ = get_sentiment(a["summary"])
-            if s == "Positive": pos += 1
-            elif s == "Negative": neg += 1
-            else: neu += 1
-        summary_rows.append({
-            "Client": f"[{client}](#{client.replace(' ', '_')})",
-            "Location": st.session_state.client_locations.get(client, "Global"),
-            "Articles": len(arts),
-            "Positive": pos,
-            "Neutral": neu,
-            "Negative": neg,
-            "Last Updated": last_fetched
-        })
-
-    if summary_rows:
-        st.subheader("📊 Companies Summary")
-        df_sum = pd.DataFrame(summary_rows)
-        st.write(df_sum.to_markdown(index=False), unsafe_allow_html=True)
-
-        # ➕ Add New Company right after table
-        new_company = st.text_input("➕ Add a new Company (session only)", key="company_input")
-        if st.button("Add Company", key="company_btn") and new_company:
-            if new_company not in st.session_state.entities:
-                st.session_state.entities.append(new_company)
-                st.session_state.client_locations[new_company] = "Global"
-                st.success(f"Added {new_company} to session watchlist")
-            else:
-                st.warning(f"{new_company} already exists")
-
-    # Per-company sections
-    for client, arts in client_articles.items():
-        if not arts: continue
-        st.markdown(f"<a name='{client.replace(' ', '_')}'></a>", unsafe_allow_html=True)
-        st.header(f"🏢 {client}")
-        for a in arts:
-            s, sc = get_sentiment(a["summary"])
-            icon = "🟢" if s == "Positive" else "🔴" if s == "Negative" else "⚪"
-            with st.expander(f"{icon} {a['title']} ({a['published']})"):
-                st.markdown(f"**Sentiment:** {s} ({sc:.2f})")
-                st.write(a["summary"])
-                st.markdown(f"[🔗 Read full article]({a['link']})")
-
-# -------------------------------
-# Tab 2: Persons
-# -------------------------------
-with tab2:
-    st.subheader("🧑 Persons Dashboard")
-
-    person_articles = {}
-    for person in st.session_state.persons:
-        loc = st.session_state.person_locations.get(person, "Global")
-        arts = fetch_news_rss(person, loc)
-        if global_search:
-            arts = [a for a in arts if global_search.lower() in a["title"].lower()]
-        person_articles[person] = arts
-
-    summary_rows = []
-    for person, arts in person_articles.items():
-        if not arts: continue
-        pos = neu = neg = 0
-        for a in arts:
-            s, _ = get_sentiment(a["summary"])
-            if s == "Positive": pos += 1
-            elif s == "Negative": neg += 1
-            else: neu += 1
-        summary_rows.append({
-            "Person": f"[{person}](#{person.replace(' ', '_')})",
-            "Location": st.session_state.person_locations.get(person, "Global"),
-            "Articles": len(arts),
-            "Positive": pos,
-            "Neutral": neu,
-            "Negative": neg,
-            "Last Updated": last_fetched
-        })
-
-    if summary_rows:
-        st.subheader("📊 Persons Summary")
-        df_sum = pd.DataFrame(summary_rows)
-        st.write(df_sum.to_markdown(index=False), unsafe_allow_html=True)
-
-        # ➕ Add New Person right after table
-        new_person = st.text_input("➕ Add a new Person (session only)", key="person_input")
-        if st.button("Add Person", key="person_btn") and new_person:
-            if new_person not in st.session_state.persons:
-                st.session_state.persons.append(new_person)
-                st.session_state.person_locations[new_person] = "Global"
-                st.success(f"Added {new_person} to session watchlist")
-            else:
-                st.warning(f"{new_person} already exists")
-
-    for person, arts in person_articles.items():
-        if not arts: continue
-        st.markdown(f"<a name='{person.replace(' ', '_')}'></a>", unsafe_allow_html=True)
-        st.header(f"🧑 {person}")
-        for a in arts:
-            s, sc = get_sentiment(a["summary"])
-            icon = "🟢" if s == "Positive" else "🔴" if s == "Negative" else "⚪"
-            with st.expander(f"{icon} {a['title']} ({a['published']})"):
-                st.markdown(f"**Sentiment:** {s} ({sc:.2f})")
-                st.write(a["summary"])
-                st.markdown(f"[🔗 Read full article]({a['link']})")
-
+with tab_companies:
+    companies = st.session_state.state.get("companies", [])
+    st.subheader("Global News (All Companies)")
+    all_news = []
+    for c in companies:
+        all_news += google_news_rss(c["name"], region=c.get("location", "Global"), max_results=6)
+    render_tiles(all_news, cols=3)
