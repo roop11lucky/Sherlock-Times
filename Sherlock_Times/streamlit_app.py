@@ -20,10 +20,9 @@ st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wid
 APP_TITLE = "🕵️ Sherlock Times – Company & Person News Dashboard"
 DATA_PATH = os.path.join("data", "app_state.json")
 
-# Hardcoded admin password (or set env var ADMIN_PASSWORD)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "sherlock-admin-123")
 
-# (Optional) Finance via yfinance
+# Optional finance
 try:
     import yfinance as yf
     HAS_YFIN = True
@@ -32,20 +31,53 @@ except Exception:
 
 analyzer = SentimentIntensityAnalyzer()
 
+# ---------------------------
+# Default seed state
+# ---------------------------
+DEFAULT_STATE = {
+    "companies": [
+        {
+            "name": "Google",
+            "location": "IN",
+            "ticker": "GOOGL",
+            "careers_url": "https://careers.google.com/",
+            "website": "https://about.google/",
+            "competitors": ["Microsoft", "Amazon"]
+        },
+        {
+            "name": "Microsoft",
+            "location": "US",
+            "ticker": "MSFT",
+            "careers_url": "https://careers.microsoft.com/",
+            "website": "https://www.microsoft.com/",
+            "competitors": ["Google", "Amazon"]
+        }
+    ],
+    "persons": [
+        {"name": "Sundar Pichai", "company": "Google"},
+        {"name": "Satya Nadella", "company": "Microsoft"}
+    ]
+}
+
 
 # ---------------------------
 # Storage
 # ---------------------------
-DEFAULT_STATE = {"companies": [], "persons": []}
-
-
 def load_state() -> Dict[str, Any]:
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     if not os.path.exists(DATA_PATH):
         save_state(DEFAULT_STATE)
         return json.loads(json.dumps(DEFAULT_STATE))
+
     with open(DATA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+        state = json.load(f)
+
+    # Auto-seed if empty
+    if not state.get("companies") and not state.get("persons"):
+        save_state(DEFAULT_STATE)
+        return json.loads(json.dumps(DEFAULT_STATE))
+
+    return state
 
 
 def save_state(state: Dict[str, Any]) -> None:
@@ -58,7 +90,6 @@ def save_state(state: Dict[str, Any]) -> None:
 # Helpers
 # ---------------------------
 def google_news_rss(query: str, region: str = "Global", max_results: int = 12) -> List[Dict[str, Any]]:
-    """Get news via Google News RSS."""
     q = requests.utils.quote(query)
     if region == "IN":
         hl, gl, ceid = "en-IN", "IN", "IN:en"
@@ -96,7 +127,6 @@ def badge_for_sentiment(label: str) -> str:
 
 
 def render_tiles(items: List[Dict[str, Any]], cols: int = 3):
-    """Render a responsive grid of tiles."""
     if not items:
         st.info("No items found.")
         return
