@@ -226,15 +226,17 @@ with tab_companies:
         render_tiles(news_items, cols=3)
 
 # ---------------------------
-# Tab 3: Admin
+# Tab 3: Admin (CRUD)
 # ---------------------------
 if tab_admin:
     with tab_admin:
         st.subheader("⚙️ Admin Panel")
 
+        # -----------------------
         # Manage Companies
+        # -----------------------
         st.markdown("### 🏢 Manage Companies")
-        comp_name = st.text_input("Company Name")
+        comp_name = st.text_input("➕ New Company Name")
         comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
         if st.button("Add Company"):
             st.session_state.state["companies"].append({"name": comp_name, "location": comp_loc})
@@ -242,13 +244,34 @@ if tab_admin:
             st.success(f"Added {comp_name} ({comp_loc})")
 
         if st.session_state.state["companies"]:
-            st.write("Current Companies:")
-            for c in st.session_state.state["companies"]:
-                st.write(f"- {c['name']} ({c['location']})")
+            st.markdown("#### ✏️ Edit / Delete Company")
+            selected = st.selectbox("Select Company", [c["name"] for c in st.session_state.state["companies"]])
+            idx = next((i for i, c in enumerate(st.session_state.state["companies"]) if c["name"] == selected), None)
+            if idx is not None:
+                company = st.session_state.state["companies"][idx]
+                new_name = st.text_input("Company Name", value=company["name"], key="edit_comp_name")
+                new_loc = st.selectbox("Location", ["Global", "IN", "US"],
+                                       index=["Global", "IN", "US"].index(company.get("location", "Global")),
+                                       key="edit_comp_loc")
 
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Changes", key="save_comp"):
+                        company["name"] = new_name
+                        company["location"] = new_loc
+                        save_state(st.session_state.state)
+                        st.success("Company updated successfully!")
+                with col2:
+                    if st.button("Delete", key="delete_comp"):
+                        st.session_state.state["companies"].pop(idx)
+                        save_state(st.session_state.state)
+                        st.warning("Company deleted!")
+
+        # -----------------------
         # Manage Persons
+        # -----------------------
         st.markdown("### 🧑 Manage Persons")
-        person_name = st.text_input("Person Name")
+        person_name = st.text_input("➕ New Person Name")
         company_link = st.text_input("Associated Company")
         if st.button("Add Person"):
             st.session_state.state["persons"].append({"name": person_name, "company": company_link})
@@ -256,6 +279,23 @@ if tab_admin:
             st.success(f"Added {person_name} (Company: {company_link})")
 
         if st.session_state.state["persons"]:
-            st.write("Current Persons:")
-            for p in st.session_state.state["persons"]:
-                st.write(f"- {p['name']} (Company: {p.get('company','-')})")
+            st.markdown("#### ✏️ Edit / Delete Person")
+            selected_p = st.selectbox("Select Person", [p["name"] for p in st.session_state.state["persons"]])
+            idx_p = next((i for i, p in enumerate(st.session_state.state["persons"]) if p["name"] == selected_p), None)
+            if idx_p is not None:
+                person = st.session_state.state["persons"][idx_p]
+                new_pname = st.text_input("Person Name", value=person["name"], key="edit_person_name")
+                new_plink = st.text_input("Associated Company", value=person.get("company", ""), key="edit_person_link")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Changes", key="save_person"):
+                        person["name"] = new_pname
+                        person["company"] = new_plink
+                        save_state(st.session_state.state)
+                        st.success("Person updated successfully!")
+                with col2:
+                    if st.button("Delete", key="delete_person"):
+                        st.session_state.state["persons"].pop(idx_p)
+                        save_state(st.session_state.state)
+                        st.warning("Person deleted!")
