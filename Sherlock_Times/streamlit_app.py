@@ -17,12 +17,12 @@ st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wid
 
 APP_TITLE = "🕵️ Sherlock Times – Company & Person News Dashboard"
 DATA_PATH = os.path.join("data", "app_state.json")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "sherlock-admin-123")
+USER_FILE = os.path.join("data", "users.json")
 
 analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
-# Default seed state
+# Default Seeds
 # ---------------------------
 DEFAULT_STATE = {
     "companies": [
@@ -33,6 +33,10 @@ DEFAULT_STATE = {
         {"name": "Sundar Pichai", "company": "Google"},
         {"name": "Satya Nadella", "company": "Microsoft"}
     ]
+}
+
+DEFAULT_USER = {
+    "admin": {"username": "sherlock", "password": "sherlock123"}
 }
 
 
@@ -59,6 +63,19 @@ def save_state(state: Dict[str, Any]) -> None:
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
+
+
+def load_users():
+    os.makedirs(os.path.dirname(USER_FILE), exist_ok=True)
+    if not os.path.exists(USER_FILE):
+        with open(USER_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_USER, f, indent=2)
+        return DEFAULT_USER
+    with open(USER_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+users = load_users()
 
 
 # ---------------------------
@@ -158,11 +175,16 @@ with colB:
 
 with colC:
     if not st.session_state.is_admin:
-        if st.button("🔐 Admin Login"):
-            pwd = st.text_input("Enter Admin Password", type="password")
-            if pwd == ADMIN_PASSWORD:
-                st.session_state.is_admin = True
-                st.success("✅ Admin login successful! Refresh tabs below.")
+        with st.expander("🔐 Admin Login"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            if st.button("Login"):
+                stored = users.get("admin", {})
+                if username == stored.get("username") and password == stored.get("password"):
+                    st.session_state.is_admin = True
+                    st.success("✅ Admin login successful!")
+                else:
+                    st.error("❌ Invalid credentials")
     else:
         if st.button("🚪 Logout"):
             st.session_state.is_admin = False
@@ -185,23 +207,23 @@ else:
 with tab_persons:
     persons = st.session_state.state.get("persons", [])
     st.subheader("Latest News about People")
-    person_news = []
     for p in persons:
-        person_news += google_news_rss(p["name"], region="Global", max_results=6)
+        st.markdown(f"### 🧑 {p['name']} ({p.get('company','')})")
+        person_news = google_news_rss(p["name"], region="Global", max_results=6)
         if p.get("company"):
             person_news += google_news_rss(f'{p["name"]} {p["company"]}', region="Global", max_results=6)
-    render_tiles(person_news, cols=3)
+        render_tiles(person_news, cols=3)
 
 # ---------------------------
-# Tab 2: Companies
+# Tab 2: Companies (grouped)
 # ---------------------------
 with tab_companies:
     companies = st.session_state.state.get("companies", [])
-    st.subheader("Global News (All Companies)")
-    all_news = []
+    st.subheader("Company-wise News")
     for c in companies:
-        all_news += google_news_rss(c["name"], region=c.get("location", "Global"), max_results=6)
-    render_tiles(all_news, cols=3)
+        st.markdown(f"### 🏢 {c['name']} ({c.get('location','Global')})")
+        news_items = google_news_rss(c["name"], region=c.get("location", "Global"), max_results=6)
+        render_tiles(news_items, cols=3)
 
 # ---------------------------
 # Tab 3: Admin
