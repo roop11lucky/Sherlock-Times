@@ -22,7 +22,7 @@ USER_FILE = os.path.join("data", "users.json")
 analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
-# Custom CSS for grid layout
+# Custom CSS (Trello-style Grid)
 # ---------------------------
 st.markdown("""
 <style>
@@ -31,7 +31,9 @@ st.markdown("""
   flex-wrap: wrap;
   gap: 20px;
   justify-content: flex-start;
+  align-items: stretch;
 }
+
 .grid-item {
   flex: 1 1 calc(25% - 20px);
   min-width: 320px;
@@ -39,15 +41,38 @@ st.markdown("""
   background: #f8fafc;
   border-radius: 10px;
   padding: 15px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 520px;   /* equal height for perfect alignment */
+  overflow: hidden;
 }
+
 .grid-item h3 {
   margin-top: 0;
   color: #0f172a;
 }
+
+.grid-item hr {
+  border: 0.5px solid #e2e8f0;
+  margin: 8px 0;
+}
+
+.news-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  background: white;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  overflow: hidden;
+}
+
 @media (max-width: 1000px) {
   .grid-item { flex: 1 1 calc(50% - 20px); }
 }
+
 @media (max-width: 600px) {
   .grid-item { flex: 1 1 100%; }
 }
@@ -164,13 +189,12 @@ def render_cards(items: List[Dict[str, Any]]):
         sent, _ = sentiment(f"{title}. {summ}")
         st.markdown(
             f"""
-            <div style="border:1px solid #e2e8f0;border-radius:10px;
-            box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;">
+            <div class="news-card">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <div style="font-weight:600;font-size:14px;">{title}</div>
+                <div style="font-weight:600;font-size:14px;line-height:1.3;">{title}</div>
                 <div>{badge_for_sentiment(sent)}</div>
               </div>
-              <div style="color:#475569;font-size:13px;">{summ[:180] + ('…' if len(summ)>180 else '')}</div>
+              <div style="color:#475569;font-size:13px;min-height:40px;">{summ[:180] + ('…' if len(summ)>180 else '')}</div>
               <div style="margin-top:8px;font-size:12px;color:#64748b;">{card.get('published','')}</div>
               <div style="margin-top:8px;">
                 <a href="{card.get('link','#')}" target="_blank"
@@ -257,7 +281,7 @@ with tab_persons:
         st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
         for p in persons:
             st.markdown(f"<div class='grid-item'><h3>{p['name']}</h3><p><b>Company:</b> {p.get('company','-')}</p><hr>", unsafe_allow_html=True)
-            news = google_news_rss(p["name"], max_results=5)
+            news = google_news_rss(p["name"], max_results=4)
             render_cards(news)
             st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
@@ -274,7 +298,7 @@ with tab_companies:
         st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
         for c in companies:
             st.markdown(f"<div class='grid-item'><h3>{c['name']}</h3><p><b>Region:</b> {c.get('location','Global')}</p><hr>", unsafe_allow_html=True)
-            news = google_news_rss(c["name"], max_results=6)
+            news = google_news_rss(c["name"], max_results=4)
             render_cards(news)
             st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
@@ -291,13 +315,13 @@ with tab_products:
         st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
         for p in products:
             st.markdown(f"<div class='grid-item'><h3>{p['name']}</h3><p><b>Category:</b> {p.get('category','')}</p><p><b>Focus:</b> {p.get('focus','')}</p><hr>", unsafe_allow_html=True)
-            news = google_news_rss(p["name"], max_results=5)
+            news = google_news_rss(p["name"], max_results=4)
             render_cards(news)
             st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------
-# Admin Panel (unchanged)
+# Admin Panel
 # ---------------------------
 if tab_admin:
     with tab_admin:
