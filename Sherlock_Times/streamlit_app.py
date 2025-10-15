@@ -15,7 +15,7 @@ from streamlit_autorefresh import st_autorefresh
 # ---------------------------
 st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
 
-APP_TITLE = "🕵️ Sherlock Times – Company & Person News Dashboard"
+APP_TITLE = "🕵️ Sherlock Times – Company, Person & Product News Dashboard"
 DATA_PATH = os.path.join("data", "app_state.json")
 USER_FILE = os.path.join("data", "users.json")
 
@@ -39,6 +39,59 @@ DEFAULT_USER = {
     "admin": {"username": "sherlock", "password": "sherlock123"}
 }
 
+# ---------------------------
+# Product Information (Static)
+# ---------------------------
+PRODUCT_INFO = {
+    "OpenAI": {
+        "description": "Creator of ChatGPT, DALL·E, Whisper, and API platform for generative AI innovation.",
+        "category": "Artificial Intelligence / NLP",
+        "website": "https://openai.com",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/4/4d/OpenAI_Logo.svg"
+    },
+    "ServiceNow": {
+        "description": "Cloud-based workflow automation platform enabling digital transformation and enterprise service management.",
+        "category": "Workflow Automation / ITSM",
+        "website": "https://www.servicenow.com",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/6/64/ServiceNow_logo.svg"
+    },
+    "Snowflake": {
+        "description": "Cloud data warehouse enabling secure data sharing and analytics at scale.",
+        "category": "Cloud Data Platform",
+        "website": "https://www.snowflake.com",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/f/ff/Snowflake_Logo.svg"
+    },
+    "Databricks": {
+        "description": "Unified analytics platform for data engineering, machine learning, and AI collaboration built on Apache Spark.",
+        "category": "Data & AI Platform",
+        "website": "https://www.databricks.com",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Databricks_logo.svg"
+    },
+    "Palantir": {
+        "description": "Software company specializing in big data analytics and enterprise AI systems for decision intelligence.",
+        "category": "Enterprise AI / Data Integration",
+        "website": "https://www.palantir.com",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/2/28/Palantir_Technologies_logo.svg"
+    },
+    "Gemini AI": {
+        "description": "Google DeepMind’s next-generation multimodal AI model powering Gemini Pro, Gemini Ultra, and Gemini Nano.",
+        "category": "AI / Multimodal LLM",
+        "website": "https://deepmind.google/technologies/gemini/",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Google_Gemini_logo.svg"
+    },
+    "Salesforce": {
+        "description": "Customer Relationship Management (CRM) platform with AI, analytics, and automation capabilities.",
+        "category": "CRM / Cloud Platform",
+        "website": "https://www.salesforce.com",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg"
+    },
+    "Nvidia": {
+        "description": "Global leader in GPUs, AI computing, and data center platforms driving innovation in AI and visualization.",
+        "category": "Semiconductors / AI Computing",
+        "website": "https://www.nvidia.com",
+        "logo": "https://upload.wikimedia.org/wikipedia/en/2/21/Nvidia_logo.svg"
+    }
+}
 
 # ---------------------------
 # Storage
@@ -48,14 +101,11 @@ def load_state() -> Dict[str, Any]:
     if not os.path.exists(DATA_PATH):
         save_state(DEFAULT_STATE)
         return DEFAULT_STATE
-
     with open(DATA_PATH, "r", encoding="utf-8") as f:
         state = json.load(f)
-
     if not state.get("companies") and not state.get("persons"):
         save_state(DEFAULT_STATE)
         return DEFAULT_STATE
-
     return state
 
 
@@ -77,7 +127,6 @@ def load_users():
 
 users = load_users()
 
-
 # ---------------------------
 # Helpers
 # ---------------------------
@@ -89,7 +138,6 @@ def google_news_rss(query: str, region: str = "Global", max_results: int = 12) -
         hl, gl, ceid = "en-US", "US", "US:en"
     else:
         hl, gl, ceid = "en", "US", "US:en"
-
     url = f"https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={ceid}"
     feed = feedparser.parse(url)
     items = []
@@ -164,8 +212,7 @@ st.title(APP_TITLE)
 
 colA, colB, colC = st.columns([1, 5, 1])
 with colA:
-    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0,
-                                   help="0 = No auto-refresh")
+    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0, help="0 = No auto-refresh")
     if refresh_minutes > 0:
         st_autorefresh(interval=refresh_minutes * 60 * 1000, key="auto_refresh")
 
@@ -196,9 +243,9 @@ st.markdown("---")
 # Tabs
 # ---------------------------
 if st.session_state.is_admin:
-    tab_persons, tab_companies, tab_admin = st.tabs(["🧑 Persons", "🏢 Companies", "⚙️ Admin"])
+    tab_persons, tab_companies, tab_products, tab_admin = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products", "⚙️ Admin"])
 else:
-    tab_persons, tab_companies = st.tabs(["🧑 Persons", "🏢 Companies"])
+    tab_persons, tab_companies, tab_products = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products"])
     tab_admin = None
 
 # ---------------------------
@@ -215,7 +262,7 @@ with tab_persons:
         render_tiles(person_news, cols=3)
 
 # ---------------------------
-# Tab 2: Companies (grouped)
+# Tab 2: Companies
 # ---------------------------
 with tab_companies:
     companies = st.session_state.state.get("companies", [])
@@ -226,15 +273,36 @@ with tab_companies:
         render_tiles(news_items, cols=3)
 
 # ---------------------------
-# Tab 3: Admin (CRUD)
+# Tab 3: Products
+# ---------------------------
+with tab_products:
+    st.subheader("Product Intelligence Hub")
+
+    selected_product = st.selectbox("Select Product", list(PRODUCT_INFO.keys()))
+    info = PRODUCT_INFO[selected_product]
+
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.image(info["logo"], width=120)
+    with col2:
+        st.markdown(f"### {selected_product}")
+        st.markdown(f"**Category:** {info['category']}")
+        st.markdown(f"**Description:** {info['description']}")
+        st.markdown(f"🌐 [Visit Website]({info['website']})")
+
+    st.markdown("---")
+    st.markdown(f"### 📰 Latest {selected_product} News")
+    product_news = google_news_rss(selected_product, region="Global", max_results=6)
+    render_tiles(product_news, cols=3)
+
+# ---------------------------
+# Tab 4: Admin (CRUD)
 # ---------------------------
 if tab_admin:
     with tab_admin:
         st.subheader("⚙️ Admin Panel")
 
-        # -----------------------
         # Manage Companies
-        # -----------------------
         st.markdown("### 🏢 Manage Companies")
         comp_name = st.text_input("➕ New Company Name")
         comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
@@ -267,9 +335,7 @@ if tab_admin:
                         save_state(st.session_state.state)
                         st.warning("Company deleted!")
 
-        # -----------------------
         # Manage Persons
-        # -----------------------
         st.markdown("### 🧑 Manage Persons")
         person_name = st.text_input("➕ New Person Name")
         company_link = st.text_input("Associated Company")
