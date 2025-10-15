@@ -22,6 +22,73 @@ USER_FILE = os.path.join("data", "users.json")
 analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
+# Grid Alignment CSS (Trello Style)
+# ---------------------------
+st.markdown("""
+<style>
+.grid-board {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.card {
+  flex: 1 1 calc(25% - 18px);
+  min-width: 320px;
+  max-width: 400px;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  height: 520px;              /* ✅ ensures perfect alignment per row */
+  box-sizing: border-box;
+}
+
+.card h3 {
+  margin-top: 0;
+  margin-bottom: 5px;
+  color: #0f172a;
+}
+
+.card p { margin: 3px 0; }
+
+.card hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 8px 0;
+}
+
+.scroll-area {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.scroll-area::-webkit-scrollbar { width: 5px; }
+.scroll-area::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+@media (max-width: 1200px) {
+  .card { flex: 1 1 calc(33.33% - 18px); }
+}
+
+@media (max-width: 900px) {
+  .card { flex: 1 1 calc(50% - 18px); }
+}
+
+@media (max-width: 600px) {
+  .card { flex: 1 1 100%; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------
 # Default Seeds
 # ---------------------------
 DEFAULT_STATE = {
@@ -53,12 +120,10 @@ DEFAULT_STATE = {
     ]
 }
 
-DEFAULT_USER = {
-    "admin": {"username": "sherlock", "password": "sherlock123"}
-}
+DEFAULT_USER = {"admin": {"username": "sherlock", "password": "sherlock123"}}
 
 # ---------------------------
-# Storage
+# State Management
 # ---------------------------
 def load_state() -> Dict[str, Any]:
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
@@ -150,7 +215,7 @@ box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background
         )
 
 # ---------------------------
-# Session & State
+# Session
 # ---------------------------
 if "state" not in st.session_state:
     st.session_state.state = load_state()
@@ -190,7 +255,6 @@ with colC:
             st.success("Logged out")
 
 st.markdown("---")
-st.markdown("<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>", unsafe_allow_html=True)
 
 # ---------------------------
 # Tabs
@@ -200,6 +264,7 @@ if st.session_state.is_admin:
 else:
     tab_persons, tab_companies, tab_products = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products"])
     tab_admin = None
+
 
 def board_header(title: str, subtitle: str):
     st.markdown(f"""
@@ -211,67 +276,39 @@ def board_header(title: str, subtitle: str):
     """, unsafe_allow_html=True)
 
 # ---------------------------
-# Persons Tab
+# PERSON / COMPANY / PRODUCT TABS
 # ---------------------------
+def render_entity_grid(items, build_info_html):
+    if not items:
+        st.info("No data available.")
+        return
+    st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
+    for item in items:
+        info_html = build_info_html(item)
+        news = google_news_rss(item["name"], max_results=5)
+        st.markdown(f"<div class='card'><h3>{item['name']}</h3>{info_html}<hr><div class='scroll-area'>", unsafe_allow_html=True)
+        render_tiles(news)
+        st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
 with tab_persons:
     board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
-    persons = st.session_state.state.get("persons", [])
-    if not persons:
-        st.info("No persons added yet.")
-    else:
-        cols = st.columns(min(len(persons), 4))
-        for idx, p in enumerate(persons):
-            with cols[idx % 4]:
-                st.markdown(f"### {p['name']}")
-                st.caption(f"**Company:** {p.get('company','-')}")
-                st.markdown("---")
-                news = google_news_rss(p["name"], max_results=5)
-                render_tiles(news)
+    render_entity_grid(st.session_state.state["persons"], lambda p: f"<p><b>Company:</b> {p.get('company','-')}</p>")
 
-# ---------------------------
-# Companies Tab
-# ---------------------------
 with tab_companies:
     board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
-    companies = st.session_state.state.get("companies", [])
-    if not companies:
-        st.info("No companies added yet.")
-    else:
-        cols = st.columns(min(len(companies), 4))
-        for idx, c in enumerate(companies):
-            with cols[idx % 4]:
-                st.markdown(f"### {c['name']}")
-                st.caption(f"**Region:** {c.get('location','Global')}")
-                st.markdown("---")
-                news = google_news_rss(c["name"], max_results=6)
-                render_tiles(news)
+    render_entity_grid(st.session_state.state["companies"], lambda c: f"<p><b>Region:</b> {c.get('location','Global')}</p>")
 
-# ---------------------------
-# Products Tab
-# ---------------------------
 with tab_products:
     board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
-    products = st.session_state.state.get("products", [])
-    if not products:
-        st.info("No products added yet.")
-    else:
-        cols = st.columns(min(len(products), 4))
-        for idx, p in enumerate(products):
-            with cols[idx % 4]:
-                st.markdown(f"### {p['name']}")
-                st.caption(f"**Category:** {p.get('category','')}")
-                st.caption(f"**Focus:** {p.get('focus','')}")
-                st.markdown("---")
-                news = google_news_rss(p["name"], max_results=5)
-                render_tiles(news)
+    render_entity_grid(st.session_state.state["products"], lambda p: f"<p><b>Category:</b> {p.get('category','')}</p><p><b>Focus:</b> {p.get('focus','')}</p>")
 
 # ---------------------------
-# Admin Tab
+# ADMIN TAB (unchanged)
 # ---------------------------
 if tab_admin:
     with tab_admin:
         st.subheader("⚙️ Admin Panel")
-
         # Manage Companies
         st.markdown("### 🏢 Manage Companies")
         comp_name = st.text_input("➕ New Company Name")
@@ -298,7 +335,6 @@ if tab_admin:
                         st.session_state.state["companies"].pop(idx)
                         save_state(st.session_state.state)
                         st.warning("🗑️ Company deleted.")
-
         st.markdown("---")
 
         # Manage Persons
@@ -327,7 +363,6 @@ if tab_admin:
                         st.session_state.state["persons"].pop(idx_p)
                         save_state(st.session_state.state)
                         st.warning("🗑️ Person deleted.")
-
         st.markdown("---")
 
         # Manage Products
