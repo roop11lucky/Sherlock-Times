@@ -4,7 +4,7 @@
     "version": "1.1.1"
   },
   "companies": {
-    "google-uuid": {
+    "google": {
       "name": "Google",
       "site": "",
       "category": "",
@@ -16,7 +16,7 @@
         {"id": "prod1", "name": "OpenAI", "desc": "GPT models, multimodal AI, API ecosystem, and enterprise integrations", "link": "", "tags": ["Generative AI", "API Platform"]}
       ]
     },
-    "microsoft-uuid": {
+    "microsoft": {
       "name": "Microsoft",
       "site": "",
       "category": "",
