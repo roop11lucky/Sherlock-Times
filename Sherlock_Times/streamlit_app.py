@@ -22,7 +22,7 @@ USER_FILE = os.path.join("data", "users.json")
 analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
-# Custom Trello Grid CSS
+# Grid Style (Fixed Alignment)
 # ---------------------------
 st.markdown("""
 <style>
@@ -30,7 +30,7 @@ st.markdown("""
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 18px;
 }
 
@@ -44,7 +44,7 @@ st.markdown("""
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
-  min-height: 500px;
+  height: 520px;                /* ✅ fixed height ensures perfect alignment */
   box-sizing: border-box;
 }
 
@@ -70,15 +70,19 @@ st.markdown("""
   padding-right: 5px;
 }
 
-.card::-webkit-scrollbar {
+.scroll-area::-webkit-scrollbar {
   width: 5px;
 }
-.card::-webkit-scrollbar-thumb {
+.scroll-area::-webkit-scrollbar-thumb {
   background-color: #cbd5e1;
   border-radius: 4px;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1200px) {
+  .card { flex: 1 1 calc(33.33% - 18px); }
+}
+
+@media (max-width: 900px) {
   .card { flex: 1 1 calc(50% - 18px); }
 }
 
@@ -123,7 +127,7 @@ DEFAULT_STATE = {
 DEFAULT_USER = {"admin": {"username": "sherlock", "password": "sherlock123"}}
 
 # ---------------------------
-# Storage Helpers
+# State Management
 # ---------------------------
 def load_state() -> Dict[str, Any]:
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
@@ -154,7 +158,7 @@ def load_users():
 users = load_users()
 
 # ---------------------------
-# Utility Functions
+# Utilities
 # ---------------------------
 def google_news_rss(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
     q = requests.utils.quote(query)
@@ -218,7 +222,7 @@ if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
 # ---------------------------
-# Header Section
+# Header
 # ---------------------------
 st.title(APP_TITLE)
 colA, colB, colC = st.columns([1, 5, 1])
@@ -267,55 +271,32 @@ def board_header(title: str, subtitle: str):
     """, unsafe_allow_html=True)
 
 # ---------------------------
-# Person Board
+# Person / Company / Product Boards
 # ---------------------------
+def render_entity_board(items, title_key, subtitle_fn):
+    if not items:
+        st.info("No items added yet.")
+        return
+    st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
+    for e in items:
+        news = google_news_rss(e[title_key], max_results=5)
+        subtitle_html = subtitle_fn(e)
+        st.markdown(f"<div class='card'><h3>{e[title_key]}</h3>{subtitle_html}<hr><div class='scroll-area'>", unsafe_allow_html=True)
+        render_cards(news)
+        st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
 with tab_persons:
     board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
-    persons = st.session_state.state.get("persons", [])
-    if not persons:
-        st.info("No persons added yet.")
-    else:
-        st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
-        for p in persons:
-            news = google_news_rss(p["name"], max_results=4)
-            st.markdown(f"<div class='card'><h3>{p['name']}</h3><p><b>Company:</b> {p.get('company','-')}</p><hr><div class='scroll-area'>", unsafe_allow_html=True)
-            render_cards(news)
-            st.markdown("</div></div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    render_entity_board(st.session_state.state["persons"], "name", lambda e: f"<p><b>Company:</b> {e.get('company','-')}</p>")
 
-# ---------------------------
-# Company Board
-# ---------------------------
 with tab_companies:
     board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
-    companies = st.session_state.state.get("companies", [])
-    if not companies:
-        st.info("No companies added yet.")
-    else:
-        st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
-        for c in companies:
-            news = google_news_rss(c["name"], max_results=4)
-            st.markdown(f"<div class='card'><h3>{c['name']}</h3><p><b>Region:</b> {c.get('location','Global')}</p><hr><div class='scroll-area'>", unsafe_allow_html=True)
-            render_cards(news)
-            st.markdown("</div></div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    render_entity_board(st.session_state.state["companies"], "name", lambda e: f"<p><b>Region:</b> {e.get('location','Global')}</p>")
 
-# ---------------------------
-# Product Board
-# ---------------------------
 with tab_products:
     board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
-    products = st.session_state.state.get("products", [])
-    if not products:
-        st.info("No products added yet.")
-    else:
-        st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
-        for p in products:
-            news = google_news_rss(p["name"], max_results=4)
-            st.markdown(f"<div class='card'><h3>{p['name']}</h3><p><b>Category:</b> {p.get('category','')}</p><p><b>Focus:</b> {p.get('focus','')}</p><hr><div class='scroll-area'>", unsafe_allow_html=True)
-            render_cards(news)
-            st.markdown("</div></div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    render_entity_board(st.session_state.state["products"], "name", lambda e: f"<p><b>Category:</b> {e.get('category','')}</p><p><b>Focus:</b> {e.get('focus','')}</p>")
 
 # ---------------------------
 # Admin Panel
@@ -350,7 +331,6 @@ if tab_admin:
                         st.session_state.state["companies"].pop(idx)
                         save_state(st.session_state.state)
                         st.warning("🗑️ Company deleted.")
-
         st.markdown("---")
 
         # Manage Persons
@@ -379,7 +359,6 @@ if tab_admin:
                         st.session_state.state["persons"].pop(idx_p)
                         save_state(st.session_state.state)
                         st.warning("🗑️ Person deleted.")
-
         st.markdown("---")
 
         # Manage Products
