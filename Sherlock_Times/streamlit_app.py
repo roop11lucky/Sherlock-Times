@@ -13,16 +13,28 @@ from streamlit_autorefresh import st_autorefresh
 # ---------------------------
 # App Config
 # ---------------------------
-st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
-
+st.set_page_config(page_title="🕵️ Sherlock Times", page_icon="🕵️", layout="wide")
 APP_TITLE = "🕵️ Sherlock Times – Company, Person & Product News Dashboard"
-DATA_PATH = os.path.join("data", "app_state.json")
-USER_FILE = os.path.join("data", "users.json")
 
+# ---------------------------
+# File Paths (auto-detect for Cloud)
+# ---------------------------
+possible_paths = [
+    os.path.join(os.path.dirname(__file__), "data"),
+    os.path.join(os.path.dirname(__file__), "..", "data")
+]
+DATA_DIR = next((p for p in possible_paths if os.path.exists(p)), possible_paths[0])
+DATA_PATH = os.path.join(DATA_DIR, "app_state.json")
+USER_FILE = os.path.join(DATA_DIR, "users.json")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# ---------------------------
+# Analyzer
+# ---------------------------
 analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
-# Default Seeds
+# Default Data
 # ---------------------------
 DEFAULT_STATE = {
     "companies": [
@@ -39,48 +51,33 @@ DEFAULT_STATE = {
         {"name": "ServiceNow", "category": "Digital Workflow / ITSM",
          "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"},
         {"name": "Snowflake", "category": "Cloud Data Platform",
-         "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"},
-        {"name": "Databricks", "category": "Data & AI Platform",
-         "focus": "Lakehouse architecture, MLflow, Delta Live Tables, and Unity Catalog"},
-        {"name": "Palantir", "category": "Enterprise AI / Data Intelligence",
-         "focus": "Foundry, AIP, operational AI, and defense applications"},
-        {"name": "Gemini AI", "category": "Multimodal AI Model",
-         "focus": "Gemini models, multimodal reasoning, and integration with Google Workspace"},
-        {"name": "Salesforce", "category": "CRM / Business Cloud",
-         "focus": "Einstein AI, Data Cloud, automation, and GPT-powered CRM features"},
-        {"name": "Nvidia", "category": "AI Hardware & Computing",
-         "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"}
+         "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"}
     ]
 }
-
-DEFAULT_USER = {
-    "admin": {"username": "sherlock", "password": "sherlock123"}
-}
+DEFAULT_USER = {"admin": {"username": "sherlock", "password": "sherlock123"}}
 
 # ---------------------------
-# Storage
+# Load / Save Helpers
 # ---------------------------
 def load_state() -> Dict[str, Any]:
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     if not os.path.exists(DATA_PATH):
         save_state(DEFAULT_STATE)
         return DEFAULT_STATE
     with open(DATA_PATH, "r", encoding="utf-8") as f:
-        state = json.load(f)
-    for key in ["companies", "persons", "products"]:
-        if key not in state:
-            state[key] = DEFAULT_STATE[key]
-    return state
-
+        try:
+            data = json.load(f)
+            for key in ["companies", "persons", "products"]:
+                if key not in data:
+                    data[key] = DEFAULT_STATE[key]
+            return data
+        except Exception:
+            return DEFAULT_STATE
 
 def save_state(state: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
-
 def load_users():
-    os.makedirs(os.path.dirname(USER_FILE), exist_ok=True)
     if not os.path.exists(USER_FILE):
         with open(USER_FILE, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_USER, f, indent=2)
@@ -88,11 +85,10 @@ def load_users():
     with open(USER_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 users = load_users()
 
 # ---------------------------
-# Helpers
+# News + Sentiment
 # ---------------------------
 def google_news_rss(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
     q = requests.utils.quote(query)
@@ -108,7 +104,6 @@ def google_news_rss(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         })
     return items
 
-
 def sentiment(text: str) -> Tuple[str, float]:
     s = analyzer.polarity_scores(text or "")
     c = s["compound"]
@@ -118,11 +113,9 @@ def sentiment(text: str) -> Tuple[str, float]:
         return "Negative", c
     return "Neutral", c
 
-
 def badge_for_sentiment(label: str) -> str:
     colors = {"Positive": "#22c55e", "Neutral": "#64748b", "Negative": "#ef4444"}
     return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
-
 
 def render_tiles(items: List[Dict[str, Any]]):
     for card in items:
@@ -158,13 +151,12 @@ if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
 # ---------------------------
-# Header + Auto-refresh
+# Header + Auto-refresh + Login
 # ---------------------------
 st.title(APP_TITLE)
-
 colA, colB, colC = st.columns([1, 5, 1])
 with colA:
-    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0, help="0 = No auto-refresh")
+    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=2, help="0 = No auto-refresh")
     if refresh_minutes > 0:
         st_autorefresh(interval=refresh_minutes * 60 * 1000, key="auto_refresh")
 
@@ -190,7 +182,6 @@ with colC:
             st.success("Logged out")
 
 st.markdown("---")
-st.markdown("<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>", unsafe_allow_html=True)
 
 # ---------------------------
 # Tabs
@@ -271,91 +262,98 @@ with tab_products:
 if tab_admin:
     with tab_admin:
         st.subheader("⚙️ Admin Panel")
+        st.caption("All changes are saved to data/app_state.json automatically.")
 
-        # Manage Companies
+        state = st.session_state.state
+
+        # Companies
         st.markdown("### 🏢 Manage Companies")
         comp_name = st.text_input("➕ New Company Name")
         comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
         if st.button("Add Company"):
-            st.session_state.state["companies"].append({"name": comp_name, "location": comp_loc})
-            save_state(st.session_state.state)
+            state["companies"].append({"name": comp_name, "location": comp_loc})
+            save_state(state)
             st.success(f"Added {comp_name} ({comp_loc})")
 
-        if st.session_state.state["companies"]:
-            selected = st.selectbox("Select Company", [c["name"] for c in st.session_state.state["companies"]])
-            idx = next((i for i, c in enumerate(st.session_state.state["companies"]) if c["name"] == selected), None)
+        if state["companies"]:
+            selected = st.selectbox("Select Company", [c["name"] for c in state["companies"]])
+            idx = next((i for i, c in enumerate(state["companies"]) if c["name"] == selected), None)
             if idx is not None:
                 new_name = st.text_input("Edit Company Name", value=selected)
                 new_loc = st.selectbox("Edit Location", ["Global", "IN", "US"], key="edit_comp_loc")
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Save Company Changes"):
-                        st.session_state.state["companies"][idx] = {"name": new_name, "location": new_loc}
-                        save_state(st.session_state.state)
+                        state["companies"][idx] = {"name": new_name, "location": new_loc}
+                        save_state(state)
                         st.success("✅ Company updated!")
                 with col2:
                     if st.button("Delete Company"):
-                        st.session_state.state["companies"].pop(idx)
-                        save_state(st.session_state.state)
+                        state["companies"].pop(idx)
+                        save_state(state)
                         st.warning("🗑️ Company deleted.")
 
         st.markdown("---")
 
-        # Manage Persons
+        # Persons
         st.markdown("### 🧑 Manage Persons")
         person_name = st.text_input("➕ New Person Name")
         company_link = st.text_input("Associated Company")
         if st.button("Add Person"):
-            st.session_state.state["persons"].append({"name": person_name, "company": company_link})
-            save_state(st.session_state.state)
+            state["persons"].append({"name": person_name, "company": company_link})
+            save_state(state)
             st.success(f"Added {person_name} (Company: {company_link})")
 
-        if st.session_state.state["persons"]:
-            selected_p = st.selectbox("Select Person", [p["name"] for p in st.session_state.state["persons"]])
-            idx_p = next((i for i, p in enumerate(st.session_state.state["persons"]) if p["name"] == selected_p), None)
+        if state["persons"]:
+            selected_p = st.selectbox("Select Person", [p["name"] for p in state["persons"]])
+            idx_p = next((i for i, p in enumerate(state["persons"]) if p["name"] == selected_p), None)
             if idx_p is not None:
                 new_pname = st.text_input("Edit Person Name", value=selected_p)
-                new_plink = st.text_input("Edit Associated Company", value=st.session_state.state["persons"][idx_p].get("company", ""))
+                new_plink = st.text_input("Edit Associated Company", value=state["persons"][idx_p].get("company", ""))
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Save Person Changes"):
-                        st.session_state.state["persons"][idx_p] = {"name": new_pname, "company": new_plink}
-                        save_state(st.session_state.state)
+                        state["persons"][idx_p] = {"name": new_pname, "company": new_plink}
+                        save_state(state)
                         st.success("✅ Person updated!")
                 with col2:
                     if st.button("Delete Person"):
-                        st.session_state.state["persons"].pop(idx_p)
-                        save_state(st.session_state.state)
+                        state["persons"].pop(idx_p)
+                        save_state(state)
                         st.warning("🗑️ Person deleted.")
 
         st.markdown("---")
 
-        # Manage Products
+        # Products
         st.markdown("### 🧩 Manage Products")
         prod_name = st.text_input("➕ New Product Name")
         prod_cat = st.text_input("Category")
         prod_focus = st.text_area("Focus Area")
         if st.button("Add Product"):
-            st.session_state.state["products"].append({"name": prod_name, "category": prod_cat, "focus": prod_focus})
-            save_state(st.session_state.state)
+            state["products"].append({"name": prod_name, "category": prod_cat, "focus": prod_focus})
+            save_state(state)
             st.success(f"Added product: {prod_name}")
 
-        if st.session_state.state["products"]:
-            selected_prod = st.selectbox("Select Product", [p["name"] for p in st.session_state.state["products"]])
-            idx_prod = next((i for i, p in enumerate(st.session_state.state["products"]) if p["name"] == selected_prod), None)
+        if state["products"]:
+            selected_prod = st.selectbox("Select Product", [p["name"] for p in state["products"]])
+            idx_prod = next((i for i, p in enumerate(state["products"]) if p["name"] == selected_prod), None)
             if idx_prod is not None:
-                prod = st.session_state.state["products"][idx_prod]
+                prod = state["products"][idx_prod]
                 new_pname = st.text_input("Edit Product Name", value=prod["name"])
                 new_cat = st.text_input("Edit Category", value=prod.get("category", ""))
                 new_focus = st.text_area("Edit Focus", value=prod.get("focus", ""))
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Save Product Changes"):
-                        st.session_state.state["products"][idx_prod] = {"name": new_pname, "category": new_cat, "focus": new_focus}
-                        save_state(st.session_state.state)
+                        state["products"][idx_prod] = {
+                            "name": new_pname,
+                            "category": new_cat,
+                            "focus": new_focus
+                        }
+                        save_state(state)
                         st.success("✅ Product updated!")
                 with col2:
                     if st.button("Delete Product"):
-                        st.session_state.state["products"].pop(idx_prod)
-                        save_state(st.session_state.state)
+                        state["products"].pop(idx_prod)
+                        save_state(state)
                         st.warning("🗑️ Product deleted.")
