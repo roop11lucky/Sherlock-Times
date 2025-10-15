@@ -40,7 +40,7 @@ DEFAULT_USER = {
 }
 
 # ---------------------------
-# Product Information
+# Product Info + Logos
 # ---------------------------
 PRODUCTS = {
     "OpenAI": {
@@ -83,6 +83,17 @@ PRODUCTS = {
         "category": "AI Hardware & Computing",
         "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"
     }
+}
+
+PRODUCT_LOGOS = {
+    "OpenAI": "https://upload.wikimedia.org/wikipedia/commons/4/4d/OpenAI_Logo.svg",
+    "ServiceNow": "https://upload.wikimedia.org/wikipedia/commons/6/64/ServiceNow_logo.svg",
+    "Snowflake": "https://upload.wikimedia.org/wikipedia/commons/f/ff/Snowflake_Logo.svg",
+    "Databricks": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Databricks_logo.svg",
+    "Palantir": "https://upload.wikimedia.org/wikipedia/commons/2/28/Palantir_Technologies_logo.svg",
+    "Gemini AI": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Google_Gemini_logo.svg",
+    "Salesforce": "https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg",
+    "Nvidia": "https://upload.wikimedia.org/wikipedia/en/2/21/Nvidia_logo.svg"
 }
 
 # ---------------------------
@@ -152,25 +163,25 @@ def badge_for_sentiment(label: str) -> str:
     return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
 
 
-def render_tiles(items: List[Dict[str, Any]], cols: int = 1):
-    if not items:
-        st.info("No items found.")
-        return
+def render_tiles(items: List[Dict[str, Any]]):
     for card in items:
         title = card.get("title", "Untitled")
         summ = (card.get("summary") or "").strip()
-        sent, score = sentiment(f"{title}. {summ}")
+        sent, _ = sentiment(f"{title}. {summ}")
         st.markdown(
             f"""
-<div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:10px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+<div style="border:1px solid #e2e8f0;border-radius:10px;
+box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
     <div style="font-weight:600;font-size:14px;line-height:1.3;">{title}</div>
     <div>{badge_for_sentiment(sent)}</div>
   </div>
-  <div style="color:#475569;font-size:13px;min-height:40px;">{summ[:200] + ('…' if len(summ)>200 else '')}</div>
+  <div style="color:#475569;font-size:13px;min-height:40px;">{summ[:180] + ('…' if len(summ)>180 else '')}</div>
   <div style="margin-top:8px;font-size:12px;color:#64748b;">{card.get('published','')}</div>
   <div style="margin-top:8px;">
-    <a href="{card.get('link','#')}" target="_blank" style="text-decoration:none;background:#0ea5e9;color:white;padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
+    <a href="{card.get('link','#')}" target="_blank"
+       style="text-decoration:none;background:#0ea5e9;color:white;
+       padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
   </div>
 </div>
             """,
@@ -219,11 +230,8 @@ with colC:
 
 st.markdown("---")
 
-# Enable horizontal scroll for Kanban layout
-st.markdown(
-    "<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>",
-    unsafe_allow_html=True,
-)
+# Enable horizontal scroll
+st.markdown("<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>", unsafe_allow_html=True)
 
 # ---------------------------
 # Tabs
@@ -235,78 +243,79 @@ else:
     tab_admin = None
 
 # ---------------------------
-# Tab 1: Persons (Trello-style)
+# Helper for unified header
+# ---------------------------
+def board_header(title: str, subtitle: str):
+    st.markdown(f"""
+    <div style='text-align:center;padding:12px;background:#f8fafc;
+    border-radius:8px;margin-bottom:20px;'>
+      <h2 style='margin-bottom:4px;'>{title}</h2>
+      <p style='color:#475569;font-size:15px;'>{subtitle}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ---------------------------
+# Tab 1: Persons
 # ---------------------------
 with tab_persons:
+    board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
     persons = st.session_state.state.get("persons", [])
-    st.subheader("🧑 Person Intelligence Board")
-
     if not persons:
         st.info("No persons added yet.")
     else:
-        cols = st.columns(len(persons))
+        cols = st.columns(min(len(persons), 4))
         for idx, p in enumerate(persons):
-            with cols[idx]:
-                st.markdown(f"### 🧑 {p['name']}")
+            with cols[idx % 4]:
+                st.markdown(f"### {p['name']}")
                 st.caption(f"**Company:** {p.get('company','-')}")
                 st.markdown("---")
-
-                person_news = google_news_rss(p["name"], max_results=4)
-                if p.get("company"):
-                    person_news += google_news_rss(f'{p["name"]} {p["company"]}', max_results=2)
-
-                render_tiles(person_news, cols=1)
+                news = google_news_rss(p["name"], max_results=5)
+                render_tiles(news)
 
 # ---------------------------
-# Tab 2: Companies (Trello-style)
+# Tab 2: Companies
 # ---------------------------
 with tab_companies:
+    board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
     companies = st.session_state.state.get("companies", [])
-    st.subheader("🏢 Company Intelligence Board")
-
     if not companies:
         st.info("No companies added yet.")
     else:
-        cols = st.columns(len(companies))
+        cols = st.columns(min(len(companies), 4))
         for idx, c in enumerate(companies):
-            with cols[idx]:
-                st.markdown(f"### 🏢 {c['name']}")
+            with cols[idx % 4]:
+                st.markdown(f"### {c['name']}")
                 st.caption(f"**Region:** {c.get('location','Global')}")
                 st.markdown("---")
-
-                news_items = google_news_rss(c["name"], max_results=6)
-                render_tiles(news_items, cols=1)
+                news = google_news_rss(c["name"], max_results=6)
+                render_tiles(news)
 
 # ---------------------------
-# Tab 3: Products (Trello-style)
+# Tab 3: Products
 # ---------------------------
 with tab_products:
-    st.subheader("🧩 Product Intelligence Board")
-    st.caption("📊 Real-time updates and trends from top tech products.")
-
+    board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
     product_names = list(PRODUCTS.keys())
-    cols = st.columns(len(product_names))
-
-    for idx, product_name in enumerate(product_names):
-        info = PRODUCTS[product_name]
-        with cols[idx]:
-            st.markdown(f"### 🧩 {product_name}")
+    cols = st.columns(min(len(product_names), 4))
+    for idx, pname in enumerate(product_names):
+        info = PRODUCTS[pname]
+        with cols[idx % 4]:
+            logo = PRODUCT_LOGOS.get(pname, None)
+            if logo:
+                st.image(logo, width=80)
+            st.markdown(f"### {pname}")
             st.caption(f"**Category:** {info['category']}")
             st.caption(f"**Focus:** {info['focus']}")
             st.markdown("---")
-
-            query = info["keywords"]
-            product_news = google_news_rss(query, max_results=5)
-            render_tiles(product_news, cols=1)
+            news = google_news_rss(info["keywords"], max_results=5)
+            render_tiles(news)
 
 # ---------------------------
-# Tab 4: Admin Panel (unchanged)
+# Tab 4: Admin (unchanged)
 # ---------------------------
 if tab_admin:
     with tab_admin:
         st.subheader("⚙️ Admin Panel")
-
-        # Manage Companies
         st.markdown("### 🏢 Manage Companies")
         comp_name = st.text_input("➕ New Company Name")
         comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
@@ -314,58 +323,3 @@ if tab_admin:
             st.session_state.state["companies"].append({"name": comp_name, "location": comp_loc})
             save_state(st.session_state.state)
             st.success(f"Added {comp_name} ({comp_loc})")
-
-        if st.session_state.state["companies"]:
-            st.markdown("#### ✏️ Edit / Delete Company")
-            selected = st.selectbox("Select Company", [c["name"] for c in st.session_state.state["companies"]])
-            idx = next((i for i, c in enumerate(st.session_state.state["companies"]) if c["name"] == selected), None)
-            if idx is not None:
-                company = st.session_state.state["companies"][idx]
-                new_name = st.text_input("Company Name", value=company["name"], key="edit_comp_name")
-                new_loc = st.selectbox("Location", ["Global", "IN", "US"],
-                                       index=["Global", "IN", "US"].index(company.get("location", "Global")),
-                                       key="edit_comp_loc")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Save Changes", key="save_comp"):
-                        company["name"] = new_name
-                        company["location"] = new_loc
-                        save_state(st.session_state.state)
-                        st.success("Company updated successfully!")
-                with col2:
-                    if st.button("Delete", key="delete_comp"):
-                        st.session_state.state["companies"].pop(idx)
-                        save_state(st.session_state.state)
-                        st.warning("Company deleted!")
-
-        # Manage Persons
-        st.markdown("### 🧑 Manage Persons")
-        person_name = st.text_input("➕ New Person Name")
-        company_link = st.text_input("Associated Company")
-        if st.button("Add Person"):
-            st.session_state.state["persons"].append({"name": person_name, "company": company_link})
-            save_state(st.session_state.state)
-            st.success(f"Added {person_name} (Company: {company_link})")
-
-        if st.session_state.state["persons"]:
-            st.markdown("#### ✏️ Edit / Delete Person")
-            selected_p = st.selectbox("Select Person", [p["name"] for p in st.session_state.state["persons"]])
-            idx_p = next((i for i, p in enumerate(st.session_state.state["persons"]) if p["name"] == selected_p), None)
-            if idx_p is not None:
-                person = st.session_state.state["persons"][idx_p]
-                new_pname = st.text_input("Person Name", value=person["name"], key="edit_person_name")
-                new_plink = st.text_input("Associated Company", value=person.get("company", ""), key="edit_person_link")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Save Changes", key="save_person"):
-                        person["name"] = new_pname
-                        person["company"] = new_plink
-                        save_state(st.session_state.state)
-                        st.success("Person updated successfully!")
-                with col2:
-                    if st.button("Delete", key="delete_person"):
-                        st.session_state.state["persons"].pop(idx_p)
-                        save_state(st.session_state.state)
-                        st.warning("Person deleted!")
