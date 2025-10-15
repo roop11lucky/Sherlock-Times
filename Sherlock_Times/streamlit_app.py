@@ -22,6 +22,39 @@ USER_FILE = os.path.join("data", "users.json")
 analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
+# Custom CSS for grid layout
+# ---------------------------
+st.markdown("""
+<style>
+.grid-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: flex-start;
+}
+.grid-item {
+  flex: 1 1 calc(25% - 20px);
+  min-width: 320px;
+  max-width: 400px;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.grid-item h3 {
+  margin-top: 0;
+  color: #0f172a;
+}
+@media (max-width: 1000px) {
+  .grid-item { flex: 1 1 calc(50% - 20px); }
+}
+@media (max-width: 600px) {
+  .grid-item { flex: 1 1 100%; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------
 # Default Seeds
 # ---------------------------
 DEFAULT_STATE = {
@@ -124,54 +157,49 @@ def badge_for_sentiment(label: str) -> str:
     return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
 
 
-def render_tiles(items: List[Dict[str, Any]]):
+def render_cards(items: List[Dict[str, Any]]):
     for card in items:
         title = card.get("title", "Untitled")
         summ = (card.get("summary") or "").strip()
         sent, _ = sentiment(f"{title}. {summ}")
         st.markdown(
             f"""
-<div style="border:1px solid #e2e8f0;border-radius:10px;
-box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-    <div style="font-weight:600;font-size:14px;line-height:1.3;">{title}</div>
-    <div>{badge_for_sentiment(sent)}</div>
-  </div>
-  <div style="color:#475569;font-size:13px;min-height:40px;">{summ[:180] + ('…' if len(summ)>180 else '')}</div>
-  <div style="margin-top:8px;font-size:12px;color:#64748b;">{card.get('published','')}</div>
-  <div style="margin-top:8px;">
-    <a href="{card.get('link','#')}" target="_blank"
-       style="text-decoration:none;background:#0ea5e9;color:white;
-       padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
-  </div>
-</div>
+            <div style="border:1px solid #e2e8f0;border-radius:10px;
+            box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div style="font-weight:600;font-size:14px;">{title}</div>
+                <div>{badge_for_sentiment(sent)}</div>
+              </div>
+              <div style="color:#475569;font-size:13px;">{summ[:180] + ('…' if len(summ)>180 else '')}</div>
+              <div style="margin-top:8px;font-size:12px;color:#64748b;">{card.get('published','')}</div>
+              <div style="margin-top:8px;">
+                <a href="{card.get('link','#')}" target="_blank"
+                   style="text-decoration:none;background:#0ea5e9;color:white;
+                   padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
+              </div>
+            </div>
             """,
             unsafe_allow_html=True,
         )
 
 # ---------------------------
-# Session & State
+# Session & Header
 # ---------------------------
 if "state" not in st.session_state:
     st.session_state.state = load_state()
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-# ---------------------------
-# Header + Auto-refresh
-# ---------------------------
 st.title(APP_TITLE)
 
 colA, colB, colC = st.columns([1, 5, 1])
 with colA:
-    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0, help="0 = No auto-refresh")
+    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0)
     if refresh_minutes > 0:
         st_autorefresh(interval=refresh_minutes * 60 * 1000, key="auto_refresh")
-
 with colB:
     tz_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.caption(f"⏱ Last Fetched: {tz_now}")
-
 with colC:
     if not st.session_state.is_admin:
         with st.expander("🔐 Admin Login"):
@@ -190,28 +218,35 @@ with colC:
             st.success("Logged out")
 
 st.markdown("---")
-st.markdown("<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>", unsafe_allow_html=True)
 
 # ---------------------------
 # Tabs
 # ---------------------------
 if st.session_state.is_admin:
-    tab_persons, tab_companies, tab_products, tab_admin = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products", "⚙️ Admin"])
+    tab_persons, tab_companies, tab_products, tab_admin = st.tabs(
+        ["🧑 Persons", "🏢 Companies", "🧩 Products", "⚙️ Admin"]
+    )
 else:
-    tab_persons, tab_companies, tab_products = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products"])
+    tab_persons, tab_companies, tab_products = st.tabs(
+        ["🧑 Persons", "🏢 Companies", "🧩 Products"]
+    )
     tab_admin = None
 
+
 def board_header(title: str, subtitle: str):
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div style='text-align:center;padding:12px;background:#f8fafc;
     border-radius:8px;margin-bottom:20px;'>
       <h2 style='margin-bottom:4px;'>{title}</h2>
       <p style='color:#475569;font-size:15px;'>{subtitle}</p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 # ---------------------------
-# Persons Tab
+# Persons Grid
 # ---------------------------
 with tab_persons:
     board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
@@ -219,17 +254,16 @@ with tab_persons:
     if not persons:
         st.info("No persons added yet.")
     else:
-        cols = st.columns(min(len(persons), 4))
-        for idx, p in enumerate(persons):
-            with cols[idx % 4]:
-                st.markdown(f"### {p['name']}")
-                st.caption(f"**Company:** {p.get('company','-')}")
-                st.markdown("---")
-                news = google_news_rss(p["name"], max_results=5)
-                render_tiles(news)
+        st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
+        for p in persons:
+            st.markdown(f"<div class='grid-item'><h3>{p['name']}</h3><p><b>Company:</b> {p.get('company','-')}</p><hr>", unsafe_allow_html=True)
+            news = google_news_rss(p["name"], max_results=5)
+            render_cards(news)
+            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------
-# Companies Tab
+# Companies Grid
 # ---------------------------
 with tab_companies:
     board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
@@ -237,17 +271,16 @@ with tab_companies:
     if not companies:
         st.info("No companies added yet.")
     else:
-        cols = st.columns(min(len(companies), 4))
-        for idx, c in enumerate(companies):
-            with cols[idx % 4]:
-                st.markdown(f"### {c['name']}")
-                st.caption(f"**Region:** {c.get('location','Global')}")
-                st.markdown("---")
-                news = google_news_rss(c["name"], max_results=6)
-                render_tiles(news)
+        st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
+        for c in companies:
+            st.markdown(f"<div class='grid-item'><h3>{c['name']}</h3><p><b>Region:</b> {c.get('location','Global')}</p><hr>", unsafe_allow_html=True)
+            news = google_news_rss(c["name"], max_results=6)
+            render_cards(news)
+            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------
-# Products Tab
+# Products Grid
 # ---------------------------
 with tab_products:
     board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
@@ -255,18 +288,16 @@ with tab_products:
     if not products:
         st.info("No products added yet.")
     else:
-        cols = st.columns(min(len(products), 4))
-        for idx, p in enumerate(products):
-            with cols[idx % 4]:
-                st.markdown(f"### {p['name']}")
-                st.caption(f"**Category:** {p.get('category','')}")
-                st.caption(f"**Focus:** {p.get('focus','')}")
-                st.markdown("---")
-                news = google_news_rss(p["name"], max_results=5)
-                render_tiles(news)
+        st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
+        for p in products:
+            st.markdown(f"<div class='grid-item'><h3>{p['name']}</h3><p><b>Category:</b> {p.get('category','')}</p><p><b>Focus:</b> {p.get('focus','')}</p><hr>", unsafe_allow_html=True)
+            news = google_news_rss(p["name"], max_results=5)
+            render_cards(news)
+            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------
-# Admin Tab
+# Admin Panel (unchanged)
 # ---------------------------
 if tab_admin:
     with tab_admin:
