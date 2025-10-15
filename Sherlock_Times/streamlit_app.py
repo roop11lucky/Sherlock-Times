@@ -40,7 +40,7 @@ DEFAULT_USER = {
 }
 
 # ---------------------------
-# Product Information + Logos
+# Product Information (no logos)
 # ---------------------------
 PRODUCTS = {
     "OpenAI": {
@@ -85,17 +85,7 @@ PRODUCTS = {
     }
 }
 
-PRODUCT_LOGOS = {
-    "OpenAI": "https://cdn-icons-png.flaticon.com/512/5968/5968705.png",
-    "ServiceNow": "https://1000logos.net/wp-content/uploads/2021/05/ServiceNow-logo.png",
-    "Snowflake": "https://companieslogo.com/img/orig/SNOW_BIG.D-7a22d6cb.png?t=1723547138",
-    "Databricks": "https://companieslogo.com/img/orig/DATB_BIG.D-9995c3c8.png?t=1723547138",
-    "Palantir": "https://companieslogo.com/img/orig/PLTR_BIG.D-5f1d2b1e.png?t=1723547138",
-    "Gemini AI": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Google_Gemini_logo.png",
-    "Salesforce": "https://1000logos.net/wp-content/uploads/2016/10/Salesforce-Logo.png",
-    "Nvidia": "https://companieslogo.com/img/orig/NVDA_BIG-1c26b71b.png?t=1723547138"
-}
-
+# (Optional) Company logos (kept; remove if you’d like)
 COMPANY_LOGOS = {
     "Google": "https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg",
     "Microsoft": "https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg",
@@ -195,7 +185,6 @@ box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background
             unsafe_allow_html=True,
         )
 
-
 # ---------------------------
 # Session & State
 # ---------------------------
@@ -238,7 +227,7 @@ with colC:
 
 st.markdown("---")
 
-# Enable horizontal scroll
+# Horizontal scroll for boards
 st.markdown("<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>", unsafe_allow_html=True)
 
 # ---------------------------
@@ -251,7 +240,7 @@ else:
     tab_admin = None
 
 # ---------------------------
-# Unified Header
+# Unified header helper
 # ---------------------------
 def board_header(title: str, subtitle: str):
     st.markdown(f"""
@@ -292,14 +281,10 @@ with tab_companies:
         cols = st.columns(min(len(companies), 4))
         for idx, c in enumerate(companies):
             with cols[idx % 4]:
+                # Company logo (kept) — remove these 3 lines if you don't want any logos at all
                 logo = COMPANY_LOGOS.get(c["name"])
                 if logo:
-                    try:
-                        st.image(logo, width=80)
-                    except:
-                        st.markdown("🏢")
-                else:
-                    st.markdown("🏢")
+                    st.image(logo, width=80)
                 st.markdown(f"### {c['name']}")
                 st.caption(f"**Region:** {c.get('location','Global')}")
                 st.markdown("---")
@@ -307,7 +292,7 @@ with tab_companies:
                 render_tiles(news)
 
 # ---------------------------
-# Tab 3: Products
+# Tab 3: Products (no logos)
 # ---------------------------
 with tab_products:
     board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
@@ -316,14 +301,7 @@ with tab_products:
     for idx, pname in enumerate(product_names):
         info = PRODUCTS[pname]
         with cols[idx % 4]:
-            logo = PRODUCT_LOGOS.get(pname)
-            if logo:
-                try:
-                    st.image(logo, width=80)
-                except:
-                    st.markdown("🧩")
-            else:
-                st.markdown("🧩")
+            # No logo here (per your request)
             st.markdown(f"### {pname}")
             st.caption(f"**Category:** {info['category']}")
             st.caption(f"**Focus:** {info['focus']}")
