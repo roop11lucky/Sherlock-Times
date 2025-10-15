@@ -228,6 +228,8 @@ def product_chip(p: dict) -> str:
 # Header (Title + Top-right Login)
 # ---------------------------
 state = load_state()
+st.code(f"File loaded from: {os.path.abspath(DATA_PATH)}")
+st.json(state)
 updated_at = state.get("meta",{}).get("updated_at")
 companies_dict = state.get("companies", {}) or {}
 companies_count = len(companies_dict)
@@ -539,3 +541,4 @@ if st.session_state.auth.get("logged_in"):
                         save_state(state)
                         st.success("Product deleted.")
                         st.experimental_rerun()
+
