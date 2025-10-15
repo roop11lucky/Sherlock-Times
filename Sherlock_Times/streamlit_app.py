@@ -189,10 +189,9 @@ def badge_for_sentiment(label: str) -> str:
     return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
 
 # ---------------------------
-# Session Init
+# Session Init (Always Load Latest)
 # ---------------------------
-if "state" not in st.session_state:
-    st.session_state.state = load_state()
+st.session_state.state = load_state()
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
@@ -228,6 +227,19 @@ with colC:
 st.markdown("---")
 
 # ---------------------------
+# Reload & Debug Controls
+# ---------------------------
+reload_col1, reload_col2 = st.columns([1, 1])
+with reload_col1:
+    if st.button("🔁 Reload from JSON"):
+        st.session_state.state = load_state()
+        st.success("✅ Reloaded dashboard data from app_state.json")
+
+with reload_col2:
+    with st.expander("📁 View Current Data (Debug)"):
+        st.json(st.session_state.state)
+
+# ---------------------------
 # Tabs
 # ---------------------------
 if st.session_state.is_admin:
@@ -249,27 +261,19 @@ def board_header(title: str, subtitle: str):
 # Grid Rendering (Fixed Alignment)
 # ---------------------------
 def render_entity_grid(items, build_info_html):
-    """Render a Trello-like grid with equal-height cards and inner scroll,
-    ensuring no Markdown 'code block' conversion by avoiding indented HTML."""
     if not items:
         st.info("No data available.")
         return
-
     html = "<div class='grid-board'>"
     for item in items:
         info_html = build_info_html(item)
         news = google_news_rss(item["name"], max_results=5)
-
-        # Card header (no indentation at line starts)
         card_html = (
             "<div class='card'>"
             f"<h3>{item['name']}</h3>"
             f"{info_html}"
-            "<hr>"
-            "<div class='scroll-area'>"
+            "<hr><div class='scroll-area'>"
         )
-
-        # News tiles inside the card (no leading spaces to avoid Markdown code blocks)
         for n in news:
             title = n.get("title", "Untitled")
             summ = (n.get("summary") or "").strip()
@@ -278,28 +282,22 @@ def render_entity_grid(items, build_info_html):
             published = n.get("published", "")
             link = n.get("link", "#")
             preview = summ[:180] + ("…" if len(summ) > 180 else "")
-
             tile_html = (
                 "<div style=\"border:1px solid #e2e8f0;border-radius:10px;"
                 "box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;\">"
-                    "<div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;\">"
-                        f"<div style=\"font-weight:600;font-size:14px;line-height:1.3;\">{title}</div>"
-                        f"<div>{badge}</div>"
-                    "</div>"
-                    f"<div style=\"color:#475569;font-size:13px;min-height:40px;\">{preview}</div>"
-                    f"<div style=\"margin-top:8px;font-size:12px;color:#64748b;\">{published}</div>"
-                    "<div style=\"margin-top:8px;\">"
-                        f"<a href=\"{link}\" target=\"_blank\" "
-                        "style=\"text-decoration:none;background:#0ea5e9;color:white;"
-                        "padding:6px 10px;border-radius:8px;font-size:12px;\">Open</a>"
-                    "</div>"
-                "</div>"
+                "<div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;\">"
+                f"<div style=\"font-weight:600;font-size:14px;line-height:1.3;\">{title}</div>"
+                f"<div>{badge}</div></div>"
+                f"<div style=\"color:#475569;font-size:13px;min-height:40px;\">{preview}</div>"
+                f"<div style=\"margin-top:8px;font-size:12px;color:#64748b;\">{published}</div>"
+                "<div style=\"margin-top:8px;\">"
+                f"<a href=\"{link}\" target=\"_blank\" "
+                "style=\"text-decoration:none;background:#0ea5e9;color:white;"
+                "padding:6px 10px;border-radius:8px;font-size:12px;\">Open</a></div></div>"
             )
             card_html += tile_html
-
-        card_html += "</div></div>"  # close scroll-area and card
+        card_html += "</div></div>"
         html += card_html
-
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
