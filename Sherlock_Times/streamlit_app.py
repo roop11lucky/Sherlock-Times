@@ -1,260 +1,361 @@
-# streamlit_app.py
 import os
 import json
-import uuid
 from datetime import datetime
-from typing import Dict, Any
-import pathlib
+from typing import Dict, List, Any, Tuple
+
 import streamlit as st
+import feedparser
+import requests
+from bs4 import BeautifulSoup
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from streamlit_autorefresh import st_autorefresh
 
 # ---------------------------
 # App Config
 # ---------------------------
-st.set_page_config(page_title="🕵️ Sherlock Times", page_icon="🕵️", layout="wide")
-APP_TITLE = "🕵️ Sherlock Times – Company, People & Product News Dashboard"
+st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
+
+APP_TITLE = "🕵️ Sherlock Times – Company, Person & Product News Dashboard"
+DATA_PATH = os.path.join("data", "app_state.json")
+USER_FILE = os.path.join("data", "users.json")
+
+analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
-# Data Path Auto-Detect
-# ---------------------------
-# Try both possible locations so it works locally and on Streamlit Cloud
-possible_paths = [
-    os.path.join(os.path.dirname(__file__), "data"),          # Sherlock_Times/data
-    os.path.join(os.path.dirname(__file__), "..", "data")     # ../data
-]
-DATA_DIR = next((p for p in possible_paths if os.path.exists(p)), possible_paths[0])
-DATA_PATH = os.path.join(DATA_DIR, "app_state.json")
-USER_FILE = os.path.join(DATA_DIR, "users.json")
-os.makedirs(DATA_DIR, exist_ok=True)
-
-# ---------------------------
-# Default Templates
+# Default Seeds
 # ---------------------------
 DEFAULT_STATE = {
-    "meta": {"updated_at": None, "version": "1.1.1"},
-    "companies": {}
+    "companies": [
+        {"name": "Google", "location": "IN"},
+        {"name": "Microsoft", "location": "US"}
+    ],
+    "persons": [
+        {"name": "Sundar Pichai", "company": "Google"},
+        {"name": "Satya Nadella", "company": "Microsoft"}
+    ],
+    "products": [
+        {"name": "OpenAI", "category": "Generative AI / API Platform",
+         "focus": "GPT models, multimodal AI, API ecosystem, and enterprise integrations"},
+        {"name": "ServiceNow", "category": "Digital Workflow / ITSM",
+         "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"},
+        {"name": "Snowflake", "category": "Cloud Data Platform",
+         "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"},
+        {"name": "Databricks", "category": "Data & AI Platform",
+         "focus": "Lakehouse architecture, MLflow, Delta Live Tables, and Unity Catalog"},
+        {"name": "Palantir", "category": "Enterprise AI / Data Intelligence",
+         "focus": "Foundry, AIP, operational AI, and defense applications"},
+        {"name": "Gemini AI", "category": "Multimodal AI Model",
+         "focus": "Gemini models, multimodal reasoning, and integration with Google Workspace"},
+        {"name": "Salesforce", "category": "CRM / Business Cloud",
+         "focus": "Einstein AI, Data Cloud, automation, and GPT-powered CRM features"},
+        {"name": "Nvidia", "category": "AI Hardware & Computing",
+         "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"}
+    ]
 }
-DEFAULT_USERS = {
-    "users": [{"username": "admin", "password": "admin123", "role": "admin"}]
+
+DEFAULT_USER = {
+    "admin": {"username": "sherlock", "password": "sherlock123"}
 }
 
 # ---------------------------
-# Load / Save Helpers
+# Storage
 # ---------------------------
-def _atomic_write_json(path: str, data: dict):
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-    os.replace(tmp, path)
-
-def load_state() -> dict:
-    """Load app state from JSON, fallback to default."""
+def load_state() -> Dict[str, Any]:
+    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     if not os.path.exists(DATA_PATH):
-        _atomic_write_json(DATA_PATH, DEFAULT_STATE)
+        save_state(DEFAULT_STATE)
         return DEFAULT_STATE
-    try:
-        with open(DATA_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        # normalize
-        if not isinstance(data.get("companies"), dict):
-            data["companies"] = {}
-        return data
-    except Exception as e:
-        st.error(f"⚠️ Error reading {DATA_PATH}: {e}")
-        return DEFAULT_STATE
+    with open(DATA_PATH, "r", encoding="utf-8") as f:
+        state = json.load(f)
+    for key in ["companies", "persons", "products"]:
+        if key not in state:
+            state[key] = DEFAULT_STATE[key]
+    return state
 
-def save_state(state: dict):
-    state["meta"]["updated_at"] = datetime.utcnow().isoformat()
-    _atomic_write_json(DATA_PATH, state)
 
-def load_users() -> dict:
+def save_state(state: Dict[str, Any]) -> None:
+    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+    with open(DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, ensure_ascii=False)
+
+
+def load_users():
+    os.makedirs(os.path.dirname(USER_FILE), exist_ok=True)
     if not os.path.exists(USER_FILE):
-        _atomic_write_json(USER_FILE, DEFAULT_USERS)
-        return DEFAULT_USERS
+        with open(USER_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_USER, f, indent=2)
+        return DEFAULT_USER
     with open(USER_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def verify_user(username: str, password: str):
-    for u in load_users().get("users", []):
-        if u.get("username") == username and u.get("password") == password:
-            return True, u.get("role", "viewer")
-    return False, "viewer"
+
+users = load_users()
 
 # ---------------------------
-# Session Auth
+# Helpers
 # ---------------------------
-if "auth" not in st.session_state:
-    st.session_state.auth = {"logged_in": False, "role": "viewer", "username": None}
+def google_news_rss(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    q = requests.utils.quote(query)
+    url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
+    feed = feedparser.parse(url)
+    items = []
+    for e in feed.entries[:max_results]:
+        items.append({
+            "title": e.title,
+            "link": e.link,
+            "published": getattr(e, "published", ""),
+            "summary": BeautifulSoup(getattr(e, "summary", ""), "html.parser").get_text()
+        })
+    return items
+
+
+def sentiment(text: str) -> Tuple[str, float]:
+    s = analyzer.polarity_scores(text or "")
+    c = s["compound"]
+    if c >= 0.05:
+        return "Positive", c
+    if c <= -0.05:
+        return "Negative", c
+    return "Neutral", c
+
+
+def badge_for_sentiment(label: str) -> str:
+    colors = {"Positive": "#22c55e", "Neutral": "#64748b", "Negative": "#ef4444"}
+    return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
+
+
+def render_tiles(items: List[Dict[str, Any]]):
+    for card in items:
+        title = card.get("title", "Untitled")
+        summ = (card.get("summary") or "").strip()
+        sent, _ = sentiment(f"{title}. {summ}")
+        st.markdown(
+            f"""
+<div style="border:1px solid #e2e8f0;border-radius:10px;
+box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+    <div style="font-weight:600;font-size:14px;line-height:1.3;">{title}</div>
+    <div>{badge_for_sentiment(sent)}</div>
+  </div>
+  <div style="color:#475569;font-size:13px;min-height:40px;">{summ[:180] + ('…' if len(summ)>180 else '')}</div>
+  <div style="margin-top:8px;font-size:12px;color:#64748b;">{card.get('published','')}</div>
+  <div style="margin-top:8px;">
+    <a href="{card.get('link','#')}" target="_blank"
+       style="text-decoration:none;background:#0ea5e9;color:white;
+       padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
+  </div>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # ---------------------------
-# UI Styling
+# Session & State
 # ---------------------------
-st.markdown("""
-<style>
-.grid-board{display:flex;flex-wrap:wrap;gap:18px;}
-.card{flex:1 1 calc(25% - 18px);min-width:280px;max-width:420px;
-background:#fff;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.06);
-padding:16px;border:1px solid rgba(0,0,0,0.06);}
-.card h3{margin:0 0 6px 0;font-size:1.05rem;}
-.subtle{color:#6b7280;font-size:0.86rem;margin-bottom:8px;}
-.tag{display:inline-block;font-size:0.75rem;padding:2px 8px;margin:3px;
-border-radius:999px;background:#f3f4f6;border:1px solid #e5e7eb;}
-.small-note{font-size:0.8rem;color:#6b7280;}
-.topbar{display:flex;align-items:center;justify-content:space-between;}
-</style>
-""", unsafe_allow_html=True)
+if "state" not in st.session_state:
+    st.session_state.state = load_state()
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
 
 # ---------------------------
-# Card Generators
+# Header + Auto-refresh
 # ---------------------------
-def company_card(c: dict):
-    name = c.get("name", "—")
-    location = c.get("location", "")
-    cat = c.get("category", "")
-    site = c.get("site", "")
-    people = c.get("people", [])
-    products = c.get("products", [])
-    st.markdown(f"""
-    <div class="card">
-      <h3>{name}</h3>
-      <div class="subtle">{cat or "Uncategorized"}{' • ' + location if location else ''}</div>
-      <hr>
-      <div><b>People:</b> {len(people)}</div>
-      <div><b>Products:</b> {len(products)}</div>
-      {f'<div class="small-note">🌐 <a href="{site}" target="_blank">{site}</a></div>' if site else ''}
-    </div>
-    """, unsafe_allow_html=True)
+st.title(APP_TITLE)
 
-def person_chip(p: dict):
-    return f"<span class='tag'>{p.get('name','—')} ({p.get('role','')})</span>"
+colA, colB, colC = st.columns([1, 5, 1])
+with colA:
+    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0, help="0 = No auto-refresh")
+    if refresh_minutes > 0:
+        st_autorefresh(interval=refresh_minutes * 60 * 1000, key="auto_refresh")
 
-def product_chip(p: dict):
-    return f"<span class='tag'>{p.get('name','—')}</span>"
+with colB:
+    tz_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.caption(f"⏱ Last Fetched: {tz_now}")
 
-# ---------------------------
-# Header (Title + Top-Right Login)
-# ---------------------------
-state = load_state()
-
-left, right = st.columns([0.8, 0.2])
-with left:
-    st.title(APP_TITLE)
-    st.caption(f"Last Updated (UTC): {state['meta'].get('updated_at')} • Companies: {len(state.get('companies',{}))}")
-
-with right:
-    if not st.session_state.auth["logged_in"]:
-        with st.expander("🔐 Admin Login", expanded=False):
-            with st.form("login", clear_on_submit=False):
-                u = st.text_input("Username")
-                p = st.text_input("Password", type="password")
-                ok = st.form_submit_button("Login")
-            if ok:
-                valid, role = verify_user(u, p)
-                if valid:
-                    st.session_state.auth = {"logged_in": True, "role": role, "username": u}
-                    st.success("✅ Logged in")
-                    st.experimental_rerun()
+with colC:
+    if not st.session_state.is_admin:
+        with st.expander("🔐 Admin Login"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            if st.button("Login"):
+                stored = users.get("admin", {})
+                if username == stored.get("username") and password == stored.get("password"):
+                    st.session_state.is_admin = True
+                    st.success("✅ Admin login successful!")
                 else:
-                    st.error("Invalid credentials.")
+                    st.error("❌ Invalid credentials")
     else:
-        st.write(f"👋 {st.session_state.auth['username']} ({st.session_state.auth['role']})")
-        if st.button("Logout"):
-            st.session_state.auth = {"logged_in": False, "role": "viewer", "username": None}
-            st.experimental_rerun()
+        if st.button("🚪 Logout"):
+            st.session_state.is_admin = False
+            st.success("Logged out")
+
+st.markdown("---")
+st.markdown("<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>", unsafe_allow_html=True)
 
 # ---------------------------
 # Tabs
 # ---------------------------
-tabs = ["🏢 Companies", "🧑‍💼 People", "🧰 Products"]
-if st.session_state.auth["logged_in"]:
-    tabs.append("⚙️ Admin")
-t = st.tabs(tabs)
+if st.session_state.is_admin:
+    tab_persons, tab_companies, tab_products, tab_admin = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products", "⚙️ Admin"])
+else:
+    tab_persons, tab_companies, tab_products = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products"])
+    tab_admin = None
+
+def board_header(title: str, subtitle: str):
+    st.markdown(f"""
+    <div style='text-align:center;padding:12px;background:#f8fafc;
+    border-radius:8px;margin-bottom:20px;'>
+      <h2 style='margin-bottom:4px;'>{title}</h2>
+      <p style='color:#475569;font-size:15px;'>{subtitle}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ---------------------------
-# 🏢 Companies Tab
+# Persons Tab
 # ---------------------------
-with t[0]:
-    st.subheader("Companies")
-    comps = state.get("companies", {})
-    if not comps:
-        st.info("No companies yet. Ask your Admin to add some under the Admin tab.")
+with tab_persons:
+    board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
+    persons = st.session_state.state.get("persons", [])
+    if not persons:
+        st.info("No persons added yet.")
     else:
-        st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
-        for cid, c in comps.items():
-            company_card(c)
-        st.markdown("</div>", unsafe_allow_html=True)
+        cols = st.columns(min(len(persons), 4))
+        for idx, p in enumerate(persons):
+            with cols[idx % 4]:
+                st.markdown(f"### {p['name']}")
+                st.caption(f"**Company:** {p.get('company','-')}")
+                st.markdown("---")
+                news = google_news_rss(p["name"], max_results=5)
+                render_tiles(news)
 
 # ---------------------------
-# 🧑‍💼 People Tab
+# Companies Tab
 # ---------------------------
-with t[1]:
-    st.subheader("People (grouped by company)")
-    comps = state.get("companies", {})
-    if not comps:
-        st.info("No people yet.")
+with tab_companies:
+    board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
+    companies = st.session_state.state.get("companies", [])
+    if not companies:
+        st.info("No companies added yet.")
     else:
-        for cid, c in comps.items():
-            ppl = c.get("people", [])
-            if not ppl:
-                continue
-            with st.expander(f"{c.get('name')} – {len(ppl)}"):
-                st.markdown(" ".join(person_chip(p) for p in ppl), unsafe_allow_html=True)
+        cols = st.columns(min(len(companies), 4))
+        for idx, c in enumerate(companies):
+            with cols[idx % 4]:
+                st.markdown(f"### {c['name']}")
+                st.caption(f"**Region:** {c.get('location','Global')}")
+                st.markdown("---")
+                news = google_news_rss(c["name"], max_results=6)
+                render_tiles(news)
 
 # ---------------------------
-# 🧰 Products Tab
+# Products Tab
 # ---------------------------
-with t[2]:
-    st.subheader("Products (company-wise)")
-    comps = state.get("companies", {})
-    if not comps:
-        st.info("No products yet.")
+with tab_products:
+    board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
+    products = st.session_state.state.get("products", [])
+    if not products:
+        st.info("No products added yet.")
     else:
-        for cid, c in comps.items():
-            prods = c.get("products", [])
-            if not prods:
-                continue
-            with st.expander(f"{c.get('name')} – {len(prods)}"):
-                st.markdown(" ".join(product_chip(p) for p in prods), unsafe_allow_html=True)
+        cols = st.columns(min(len(products), 4))
+        for idx, p in enumerate(products):
+            with cols[idx % 4]:
+                st.markdown(f"### {p['name']}")
+                st.caption(f"**Category:** {p.get('category','')}")
+                st.caption(f"**Focus:** {p.get('focus','')}")
+                st.markdown("---")
+                news = google_news_rss(p["name"], max_results=5)
+                render_tiles(news)
 
 # ---------------------------
-# ⚙️ Admin Tab
+# Admin Tab
 # ---------------------------
-if st.session_state.auth["logged_in"]:
-    with t[-1]:
-        st.header("⚙️ Admin Panel")
-        st.caption("All updates save into data/app_state.json automatically.")
-        comps = state.get("companies", {})
+if tab_admin:
+    with tab_admin:
+        st.subheader("⚙️ Admin Panel")
 
-        # Add Company
-        with st.form("add_company", clear_on_submit=True):
-            st.write("### ➕ Add Company")
-            cname = st.text_input("Company Name *")
-            ccat = st.text_input("Category")
-            cloc = st.text_input("Location")
-            csite = st.text_input("Website")
-            submitted = st.form_submit_button("Add Company")
-        if submitted and cname.strip():
-            state["companies"][str(uuid.uuid4())] = {
-                "name": cname.strip(),
-                "category": ccat.strip(),
-                "location": cloc.strip(),
-                "site": csite.strip(),
-                "people": [],
-                "products": []
-            }
-            save_state(state)
-            st.success(f"Added {cname}")
-            st.experimental_rerun()
+        # Manage Companies
+        st.markdown("### 🏢 Manage Companies")
+        comp_name = st.text_input("➕ New Company Name")
+        comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
+        if st.button("Add Company"):
+            st.session_state.state["companies"].append({"name": comp_name, "location": comp_loc})
+            save_state(st.session_state.state)
+            st.success(f"Added {comp_name} ({comp_loc})")
 
-        # Delete Company
-        st.write("### 🗑 Delete Company")
-        if not comps:
-            st.info("No companies to delete.")
-        else:
-            sel = st.selectbox("Select", options=list(comps.keys()), format_func=lambda x: comps[x]["name"])
-            if st.button("Delete Selected"):
-                removed = comps[sel]["name"]
-                comps.pop(sel)
-                state["companies"] = comps
-                save_state(state)
-                st.success(f"Deleted {removed}")
-                st.experimental_rerun()
+        if st.session_state.state["companies"]:
+            selected = st.selectbox("Select Company", [c["name"] for c in st.session_state.state["companies"]])
+            idx = next((i for i, c in enumerate(st.session_state.state["companies"]) if c["name"] == selected), None)
+            if idx is not None:
+                new_name = st.text_input("Edit Company Name", value=selected)
+                new_loc = st.selectbox("Edit Location", ["Global", "IN", "US"], key="edit_comp_loc")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Company Changes"):
+                        st.session_state.state["companies"][idx] = {"name": new_name, "location": new_loc}
+                        save_state(st.session_state.state)
+                        st.success("✅ Company updated!")
+                with col2:
+                    if st.button("Delete Company"):
+                        st.session_state.state["companies"].pop(idx)
+                        save_state(st.session_state.state)
+                        st.warning("🗑️ Company deleted.")
+
+        st.markdown("---")
+
+        # Manage Persons
+        st.markdown("### 🧑 Manage Persons")
+        person_name = st.text_input("➕ New Person Name")
+        company_link = st.text_input("Associated Company")
+        if st.button("Add Person"):
+            st.session_state.state["persons"].append({"name": person_name, "company": company_link})
+            save_state(st.session_state.state)
+            st.success(f"Added {person_name} (Company: {company_link})")
+
+        if st.session_state.state["persons"]:
+            selected_p = st.selectbox("Select Person", [p["name"] for p in st.session_state.state["persons"]])
+            idx_p = next((i for i, p in enumerate(st.session_state.state["persons"]) if p["name"] == selected_p), None)
+            if idx_p is not None:
+                new_pname = st.text_input("Edit Person Name", value=selected_p)
+                new_plink = st.text_input("Edit Associated Company", value=st.session_state.state["persons"][idx_p].get("company", ""))
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Person Changes"):
+                        st.session_state.state["persons"][idx_p] = {"name": new_pname, "company": new_plink}
+                        save_state(st.session_state.state)
+                        st.success("✅ Person updated!")
+                with col2:
+                    if st.button("Delete Person"):
+                        st.session_state.state["persons"].pop(idx_p)
+                        save_state(st.session_state.state)
+                        st.warning("🗑️ Person deleted.")
+
+        st.markdown("---")
+
+        # Manage Products
+        st.markdown("### 🧩 Manage Products")
+        prod_name = st.text_input("➕ New Product Name")
+        prod_cat = st.text_input("Category")
+        prod_focus = st.text_area("Focus Area")
+        if st.button("Add Product"):
+            st.session_state.state["products"].append({"name": prod_name, "category": prod_cat, "focus": prod_focus})
+            save_state(st.session_state.state)
+            st.success(f"Added product: {prod_name}")
+
+        if st.session_state.state["products"]:
+            selected_prod = st.selectbox("Select Product", [p["name"] for p in st.session_state.state["products"]])
+            idx_prod = next((i for i, p in enumerate(st.session_state.state["products"]) if p["name"] == selected_prod), None)
+            if idx_prod is not None:
+                prod = st.session_state.state["products"][idx_prod]
+                new_pname = st.text_input("Edit Product Name", value=prod["name"])
+                new_cat = st.text_input("Edit Category", value=prod.get("category", ""))
+                new_focus = st.text_area("Edit Focus", value=prod.get("focus", ""))
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Product Changes"):
+                        st.session_state.state["products"][idx_prod] = {"name": new_pname, "category": new_cat, "focus": new_focus}
+                        save_state(st.session_state.state)
+                        st.success("✅ Product updated!")
+                with col2:
+                    if st.button("Delete Product"):
+                        st.session_state.state["products"].pop(idx_prod)
+                        save_state(st.session_state.state)
+                        st.warning("🗑️ Product deleted.")
