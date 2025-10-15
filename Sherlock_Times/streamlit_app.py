@@ -40,56 +40,48 @@ DEFAULT_USER = {
 }
 
 # ---------------------------
-# Product Information (Static)
+# Product Information (True Product Context)
 # ---------------------------
-PRODUCT_INFO = {
+PRODUCTS = {
     "OpenAI": {
-        "description": "Creator of ChatGPT, DALL·E, Whisper, and API platform for generative AI innovation.",
-        "category": "Artificial Intelligence / NLP",
-        "website": "https://openai.com",
-        "logo": "https://upload.wikimedia.org/wikipedia/commons/4/4d/OpenAI_Logo.svg"
+        "keywords": "OpenAI API OR ChatGPT OR GPT-5 OR DALL-E site:techcrunch.com OR site:venturebeat.com",
+        "category": "Generative AI / API Platform",
+        "focus": "GPT models, multimodal AI, API ecosystem, and enterprise integrations"
     },
     "ServiceNow": {
-        "description": "Cloud-based workflow automation platform enabling digital transformation and enterprise service management.",
-        "category": "Workflow Automation / ITSM",
-        "website": "https://www.servicenow.com",
-        "logo": "https://upload.wikimedia.org/wikipedia/commons/6/64/ServiceNow_logo.svg"
+        "keywords": "ServiceNow Flow Designer OR ServiceNow ITSM OR ServiceNow release notes OR ServiceNow platform update",
+        "category": "Digital Workflow / ITSM",
+        "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"
     },
     "Snowflake": {
-        "description": "Cloud data warehouse enabling secure data sharing and analytics at scale.",
+        "keywords": "Snowflake Snowpark OR Snowflake Data Marketplace OR Snowflake Cortex OR Snowflake AI",
         "category": "Cloud Data Platform",
-        "website": "https://www.snowflake.com",
-        "logo": "https://upload.wikimedia.org/wikipedia/commons/f/ff/Snowflake_Logo.svg"
+        "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"
     },
     "Databricks": {
-        "description": "Unified analytics platform for data engineering, machine learning, and AI collaboration built on Apache Spark.",
+        "keywords": "Databricks Lakehouse OR MLflow OR Databricks Unity Catalog OR Databricks AI",
         "category": "Data & AI Platform",
-        "website": "https://www.databricks.com",
-        "logo": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Databricks_logo.svg"
+        "focus": "Lakehouse architecture, MLflow, Delta Live Tables, and Unity Catalog"
     },
     "Palantir": {
-        "description": "Software company specializing in big data analytics and enterprise AI systems for decision intelligence.",
-        "category": "Enterprise AI / Data Integration",
-        "website": "https://www.palantir.com",
-        "logo": "https://upload.wikimedia.org/wikipedia/commons/2/28/Palantir_Technologies_logo.svg"
+        "keywords": "Palantir Foundry OR Palantir AIP OR Palantir Apollo OR Palantir AI Platform",
+        "category": "Enterprise AI / Data Intelligence",
+        "focus": "Foundry, AIP, operational AI, and defense applications"
     },
     "Gemini AI": {
-        "description": "Google DeepMind’s next-generation multimodal AI model powering Gemini Pro, Gemini Ultra, and Gemini Nano.",
-        "category": "AI / Multimodal LLM",
-        "website": "https://deepmind.google/technologies/gemini/",
-        "logo": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Google_Gemini_logo.svg"
+        "keywords": "Google Gemini OR Gemini Pro OR Gemini Ultra OR Gemini Nano OR DeepMind Gemini",
+        "category": "Multimodal AI Model",
+        "focus": "Gemini models, multimodal reasoning, and integration with Google Workspace"
     },
     "Salesforce": {
-        "description": "Customer Relationship Management (CRM) platform with AI, analytics, and automation capabilities.",
-        "category": "CRM / Cloud Platform",
-        "website": "https://www.salesforce.com",
-        "logo": "https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg"
+        "keywords": "Salesforce Einstein OR Salesforce Data Cloud OR Service Cloud OR Slack GPT",
+        "category": "CRM / Business Cloud",
+        "focus": "Einstein AI, Data Cloud, automation, and GPT-powered CRM features"
     },
     "Nvidia": {
-        "description": "Global leader in GPUs, AI computing, and data center platforms driving innovation in AI and visualization.",
-        "category": "Semiconductors / AI Computing",
-        "website": "https://www.nvidia.com",
-        "logo": "https://upload.wikimedia.org/wikipedia/en/2/21/Nvidia_logo.svg"
+        "keywords": "Nvidia GPU OR CUDA OR RTX OR TensorRT OR Nvidia AI Enterprise",
+        "category": "AI Hardware & Computing",
+        "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"
     }
 }
 
@@ -130,15 +122,9 @@ users = load_users()
 # ---------------------------
 # Helpers
 # ---------------------------
-def google_news_rss(query: str, region: str = "Global", max_results: int = 12) -> List[Dict[str, Any]]:
+def google_news_rss(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
     q = requests.utils.quote(query)
-    if region == "IN":
-        hl, gl, ceid = "en-IN", "IN", "IN:en"
-    elif region == "US":
-        hl, gl, ceid = "en-US", "US", "US:en"
-    else:
-        hl, gl, ceid = "en", "US", "US:en"
-    url = f"https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={ceid}"
+    url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
     feed = feedparser.parse(url)
     items = []
     for e in feed.entries[:max_results]:
@@ -256,9 +242,9 @@ with tab_persons:
     st.subheader("Latest News about People")
     for p in persons:
         st.markdown(f"### 🧑 {p['name']} ({p.get('company','')})")
-        person_news = google_news_rss(p["name"], region="Global", max_results=6)
+        person_news = google_news_rss(p["name"], max_results=6)
         if p.get("company"):
-            person_news += google_news_rss(f'{p["name"]} {p["company"]}', region="Global", max_results=6)
+            person_news += google_news_rss(f'{p["name"]} {p["company"]}', max_results=6)
         render_tiles(person_news, cols=3)
 
 # ---------------------------
@@ -269,34 +255,28 @@ with tab_companies:
     st.subheader("Company-wise News")
     for c in companies:
         st.markdown(f"### 🏢 {c['name']} ({c.get('location','Global')})")
-        news_items = google_news_rss(c["name"], region=c.get("location", "Global"), max_results=6)
+        news_items = google_news_rss(c["name"], max_results=6)
         render_tiles(news_items, cols=3)
 
 # ---------------------------
 # Tab 3: Products
 # ---------------------------
 with tab_products:
-    st.subheader("Product Intelligence Hub")
+    st.subheader("🧩 Product Intelligence Hub")
+    selected_product = st.selectbox("Select Product", list(PRODUCTS.keys()))
+    info = PRODUCTS[selected_product]
 
-    selected_product = st.selectbox("Select Product", list(PRODUCT_INFO.keys()))
-    info = PRODUCT_INFO[selected_product]
-
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.image(info["logo"], width=120)
-    with col2:
-        st.markdown(f"### {selected_product}")
-        st.markdown(f"**Category:** {info['category']}")
-        st.markdown(f"**Description:** {info['description']}")
-        st.markdown(f"🌐 [Visit Website]({info['website']})")
-
+    st.markdown(f"### 📦 {selected_product}")
+    st.markdown(f"**Category:** {info['category']}")
+    st.markdown(f"**Focus Areas:** {info['focus']}")
     st.markdown("---")
-    st.markdown(f"### 📰 Latest {selected_product} News")
-    product_news = google_news_rss(selected_product, region="Global", max_results=6)
+    st.markdown(f"### 📰 Latest Updates about {selected_product}")
+    query = info["keywords"]
+    product_news = google_news_rss(query, max_results=8)
     render_tiles(product_news, cols=3)
 
 # ---------------------------
-# Tab 4: Admin (CRUD)
+# Tab 4: Admin
 # ---------------------------
 if tab_admin:
     with tab_admin:
