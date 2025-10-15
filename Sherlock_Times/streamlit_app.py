@@ -32,65 +32,29 @@ DEFAULT_STATE = {
     "persons": [
         {"name": "Sundar Pichai", "company": "Google"},
         {"name": "Satya Nadella", "company": "Microsoft"}
+    ],
+    "products": [
+        {"name": "OpenAI", "category": "Generative AI / API Platform",
+         "focus": "GPT models, multimodal AI, API ecosystem, and enterprise integrations"},
+        {"name": "ServiceNow", "category": "Digital Workflow / ITSM",
+         "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"},
+        {"name": "Snowflake", "category": "Cloud Data Platform",
+         "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"},
+        {"name": "Databricks", "category": "Data & AI Platform",
+         "focus": "Lakehouse architecture, MLflow, Delta Live Tables, and Unity Catalog"},
+        {"name": "Palantir", "category": "Enterprise AI / Data Intelligence",
+         "focus": "Foundry, AIP, operational AI, and defense applications"},
+        {"name": "Gemini AI", "category": "Multimodal AI Model",
+         "focus": "Gemini models, multimodal reasoning, and integration with Google Workspace"},
+        {"name": "Salesforce", "category": "CRM / Business Cloud",
+         "focus": "Einstein AI, Data Cloud, automation, and GPT-powered CRM features"},
+        {"name": "Nvidia", "category": "AI Hardware & Computing",
+         "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"}
     ]
 }
 
 DEFAULT_USER = {
     "admin": {"username": "sherlock", "password": "sherlock123"}
-}
-
-# ---------------------------
-# Product Information (no logos)
-# ---------------------------
-PRODUCTS = {
-    "OpenAI": {
-        "keywords": "OpenAI API OR ChatGPT OR GPT-5 OR DALL-E site:techcrunch.com OR site:venturebeat.com",
-        "category": "Generative AI / API Platform",
-        "focus": "GPT models, multimodal AI, API ecosystem, and enterprise integrations"
-    },
-    "ServiceNow": {
-        "keywords": "ServiceNow Flow Designer OR ServiceNow ITSM OR ServiceNow release notes OR ServiceNow platform update",
-        "category": "Digital Workflow / ITSM",
-        "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"
-    },
-    "Snowflake": {
-        "keywords": "Snowflake Snowpark OR Snowflake Data Marketplace OR Snowflake Cortex OR Snowflake AI",
-        "category": "Cloud Data Platform",
-        "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"
-    },
-    "Databricks": {
-        "keywords": "Databricks Lakehouse OR MLflow OR Databricks Unity Catalog OR Databricks AI",
-        "category": "Data & AI Platform",
-        "focus": "Lakehouse architecture, MLflow, Delta Live Tables, and Unity Catalog"
-    },
-    "Palantir": {
-        "keywords": "Palantir Foundry OR Palantir AIP OR Palantir Apollo OR Palantir AI Platform",
-        "category": "Enterprise AI / Data Intelligence",
-        "focus": "Foundry, AIP, operational AI, and defense applications"
-    },
-    "Gemini AI": {
-        "keywords": "Google Gemini OR Gemini Pro OR Gemini Ultra OR Gemini Nano OR DeepMind Gemini",
-        "category": "Multimodal AI Model",
-        "focus": "Gemini models, multimodal reasoning, and integration with Google Workspace"
-    },
-    "Salesforce": {
-        "keywords": "Salesforce Einstein OR Salesforce Data Cloud OR Service Cloud OR Slack GPT",
-        "category": "CRM / Business Cloud",
-        "focus": "Einstein AI, Data Cloud, automation, and GPT-powered CRM features"
-    },
-    "Nvidia": {
-        "keywords": "Nvidia GPU OR CUDA OR RTX OR TensorRT OR Nvidia AI Enterprise",
-        "category": "AI Hardware & Computing",
-        "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"
-    }
-}
-
-# (Optional) Company logos (kept; remove if you’d like)
-COMPANY_LOGOS = {
-    "Google": "https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg",
-    "Microsoft": "https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg",
-    "Amazon": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
-    "Apple": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg",
 }
 
 # ---------------------------
@@ -103,9 +67,9 @@ def load_state() -> Dict[str, Any]:
         return DEFAULT_STATE
     with open(DATA_PATH, "r", encoding="utf-8") as f:
         state = json.load(f)
-    if not state.get("companies") and not state.get("persons"):
-        save_state(DEFAULT_STATE)
-        return DEFAULT_STATE
+    for key in ["companies", "persons", "products"]:
+        if key not in state:
+            state[key] = DEFAULT_STATE[key]
     return state
 
 
@@ -226,8 +190,6 @@ with colC:
             st.success("Logged out")
 
 st.markdown("---")
-
-# Horizontal scroll for boards
 st.markdown("<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>", unsafe_allow_html=True)
 
 # ---------------------------
@@ -239,9 +201,6 @@ else:
     tab_persons, tab_companies, tab_products = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products"])
     tab_admin = None
 
-# ---------------------------
-# Unified header helper
-# ---------------------------
 def board_header(title: str, subtitle: str):
     st.markdown(f"""
     <div style='text-align:center;padding:12px;background:#f8fafc;
@@ -252,7 +211,7 @@ def board_header(title: str, subtitle: str):
     """, unsafe_allow_html=True)
 
 # ---------------------------
-# Tab 1: Persons
+# Persons Tab
 # ---------------------------
 with tab_persons:
     board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
@@ -270,7 +229,7 @@ with tab_persons:
                 render_tiles(news)
 
 # ---------------------------
-# Tab 2: Companies
+# Companies Tab
 # ---------------------------
 with tab_companies:
     board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
@@ -281,10 +240,6 @@ with tab_companies:
         cols = st.columns(min(len(companies), 4))
         for idx, c in enumerate(companies):
             with cols[idx % 4]:
-                # Company logo (kept) — remove these 3 lines if you don't want any logos at all
-                logo = COMPANY_LOGOS.get(c["name"])
-                if logo:
-                    st.image(logo, width=80)
                 st.markdown(f"### {c['name']}")
                 st.caption(f"**Region:** {c.get('location','Global')}")
                 st.markdown("---")
@@ -292,29 +247,32 @@ with tab_companies:
                 render_tiles(news)
 
 # ---------------------------
-# Tab 3: Products (no logos)
+# Products Tab
 # ---------------------------
 with tab_products:
     board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
-    product_names = list(PRODUCTS.keys())
-    cols = st.columns(min(len(product_names), 4))
-    for idx, pname in enumerate(product_names):
-        info = PRODUCTS[pname]
-        with cols[idx % 4]:
-            # No logo here (per your request)
-            st.markdown(f"### {pname}")
-            st.caption(f"**Category:** {info['category']}")
-            st.caption(f"**Focus:** {info['focus']}")
-            st.markdown("---")
-            news = google_news_rss(info["keywords"], max_results=5)
-            render_tiles(news)
+    products = st.session_state.state.get("products", [])
+    if not products:
+        st.info("No products added yet.")
+    else:
+        cols = st.columns(min(len(products), 4))
+        for idx, p in enumerate(products):
+            with cols[idx % 4]:
+                st.markdown(f"### {p['name']}")
+                st.caption(f"**Category:** {p.get('category','')}")
+                st.caption(f"**Focus:** {p.get('focus','')}")
+                st.markdown("---")
+                news = google_news_rss(p["name"], max_results=5)
+                render_tiles(news)
 
 # ---------------------------
-# Tab 4: Admin (unchanged)
+# Admin Tab
 # ---------------------------
 if tab_admin:
     with tab_admin:
         st.subheader("⚙️ Admin Panel")
+
+        # Manage Companies
         st.markdown("### 🏢 Manage Companies")
         comp_name = st.text_input("➕ New Company Name")
         comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
@@ -322,3 +280,82 @@ if tab_admin:
             st.session_state.state["companies"].append({"name": comp_name, "location": comp_loc})
             save_state(st.session_state.state)
             st.success(f"Added {comp_name} ({comp_loc})")
+
+        if st.session_state.state["companies"]:
+            selected = st.selectbox("Select Company", [c["name"] for c in st.session_state.state["companies"]])
+            idx = next((i for i, c in enumerate(st.session_state.state["companies"]) if c["name"] == selected), None)
+            if idx is not None:
+                new_name = st.text_input("Edit Company Name", value=selected)
+                new_loc = st.selectbox("Edit Location", ["Global", "IN", "US"], key="edit_comp_loc")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Company Changes"):
+                        st.session_state.state["companies"][idx] = {"name": new_name, "location": new_loc}
+                        save_state(st.session_state.state)
+                        st.success("✅ Company updated!")
+                with col2:
+                    if st.button("Delete Company"):
+                        st.session_state.state["companies"].pop(idx)
+                        save_state(st.session_state.state)
+                        st.warning("🗑️ Company deleted.")
+
+        st.markdown("---")
+
+        # Manage Persons
+        st.markdown("### 🧑 Manage Persons")
+        person_name = st.text_input("➕ New Person Name")
+        company_link = st.text_input("Associated Company")
+        if st.button("Add Person"):
+            st.session_state.state["persons"].append({"name": person_name, "company": company_link})
+            save_state(st.session_state.state)
+            st.success(f"Added {person_name} (Company: {company_link})")
+
+        if st.session_state.state["persons"]:
+            selected_p = st.selectbox("Select Person", [p["name"] for p in st.session_state.state["persons"]])
+            idx_p = next((i for i, p in enumerate(st.session_state.state["persons"]) if p["name"] == selected_p), None)
+            if idx_p is not None:
+                new_pname = st.text_input("Edit Person Name", value=selected_p)
+                new_plink = st.text_input("Edit Associated Company", value=st.session_state.state["persons"][idx_p].get("company", ""))
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Person Changes"):
+                        st.session_state.state["persons"][idx_p] = {"name": new_pname, "company": new_plink}
+                        save_state(st.session_state.state)
+                        st.success("✅ Person updated!")
+                with col2:
+                    if st.button("Delete Person"):
+                        st.session_state.state["persons"].pop(idx_p)
+                        save_state(st.session_state.state)
+                        st.warning("🗑️ Person deleted.")
+
+        st.markdown("---")
+
+        # Manage Products
+        st.markdown("### 🧩 Manage Products")
+        prod_name = st.text_input("➕ New Product Name")
+        prod_cat = st.text_input("Category")
+        prod_focus = st.text_area("Focus Area")
+        if st.button("Add Product"):
+            st.session_state.state["products"].append({"name": prod_name, "category": prod_cat, "focus": prod_focus})
+            save_state(st.session_state.state)
+            st.success(f"Added product: {prod_name}")
+
+        if st.session_state.state["products"]:
+            selected_prod = st.selectbox("Select Product", [p["name"] for p in st.session_state.state["products"]])
+            idx_prod = next((i for i, p in enumerate(st.session_state.state["products"]) if p["name"] == selected_prod), None)
+            if idx_prod is not None:
+                prod = st.session_state.state["products"][idx_prod]
+                new_pname = st.text_input("Edit Product Name", value=prod["name"])
+                new_cat = st.text_input("Edit Category", value=prod.get("category", ""))
+                new_focus = st.text_area("Edit Focus", value=prod.get("focus", ""))
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Product Changes"):
+                        st.session_state.state["products"][idx_prod] = {"name": new_pname, "category": new_cat, "focus": new_focus}
+                        save_state(st.session_state.state)
+                        st.success("✅ Product updated!")
+                with col2:
+                    if st.button("Delete Product"):
+                        st.session_state.state["products"].pop(idx_prod)
+                        save_state(st.session_state.state)
+                        st.warning("🗑️ Product deleted.")
