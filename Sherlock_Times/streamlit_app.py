@@ -22,7 +22,7 @@ USER_FILE = os.path.join("data", "users.json")
 analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
-# Grid Alignment CSS (Trello Style)
+# CSS Grid Layout (Trello-style)
 # ---------------------------
 st.markdown("""
 <style>
@@ -44,7 +44,7 @@ st.markdown("""
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
-  height: 520px;              /* ✅ ensures perfect alignment per row */
+  height: 520px;
   box-sizing: border-box;
 }
 
@@ -123,7 +123,7 @@ DEFAULT_STATE = {
 DEFAULT_USER = {"admin": {"username": "sherlock", "password": "sherlock123"}}
 
 # ---------------------------
-# State Management
+# Storage
 # ---------------------------
 def load_state() -> Dict[str, Any]:
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
@@ -188,34 +188,8 @@ def badge_for_sentiment(label: str) -> str:
     colors = {"Positive": "#22c55e", "Neutral": "#64748b", "Negative": "#ef4444"}
     return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
 
-
-def render_tiles(items: List[Dict[str, Any]]):
-    for card in items:
-        title = card.get("title", "Untitled")
-        summ = (card.get("summary") or "").strip()
-        sent, _ = sentiment(f"{title}. {summ}")
-        st.markdown(
-            f"""
-<div style="border:1px solid #e2e8f0;border-radius:10px;
-box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-    <div style="font-weight:600;font-size:14px;line-height:1.3;">{title}</div>
-    <div>{badge_for_sentiment(sent)}</div>
-  </div>
-  <div style="color:#475569;font-size:13px;min-height:40px;">{summ[:180] + ('…' if len(summ)>180 else '')}</div>
-  <div style="margin-top:8px;font-size:12px;color:#64748b;">{card.get('published','')}</div>
-  <div style="margin-top:8px;">
-    <a href="{card.get('link','#')}" target="_blank"
-       style="text-decoration:none;background:#0ea5e9;color:white;
-       padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
-  </div>
-</div>
-            """,
-            unsafe_allow_html=True,
-        )
-
 # ---------------------------
-# Session
+# Session Init
 # ---------------------------
 if "state" not in st.session_state:
     st.session_state.state = load_state()
@@ -223,20 +197,17 @@ if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
 # ---------------------------
-# Header + Auto-refresh
+# Header + Refresh
 # ---------------------------
 st.title(APP_TITLE)
-
 colA, colB, colC = st.columns([1, 5, 1])
 with colA:
-    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0, help="0 = No auto-refresh")
+    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0)
     if refresh_minutes > 0:
         st_autorefresh(interval=refresh_minutes * 60 * 1000, key="auto_refresh")
-
 with colB:
     tz_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.caption(f"⏱ Last Fetched: {tz_now}")
-
 with colC:
     if not st.session_state.is_admin:
         with st.expander("🔐 Admin Login"):
@@ -268,29 +239,56 @@ else:
 
 def board_header(title: str, subtitle: str):
     st.markdown(f"""
-    <div style='text-align:center;padding:12px;background:#f8fafc;
-    border-radius:8px;margin-bottom:20px;'>
+    <div style='text-align:center;padding:12px;background:#f8fafc;border-radius:8px;margin-bottom:20px;'>
       <h2 style='margin-bottom:4px;'>{title}</h2>
       <p style='color:#475569;font-size:15px;'>{subtitle}</p>
     </div>
     """, unsafe_allow_html=True)
 
 # ---------------------------
-# PERSON / COMPANY / PRODUCT TABS
+# Grid Rendering (Fixed Alignment)
 # ---------------------------
 def render_entity_grid(items, build_info_html):
     if not items:
         st.info("No data available.")
         return
-    st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
+
+    html = "<div class='grid-board'>"
     for item in items:
         info_html = build_info_html(item)
         news = google_news_rss(item["name"], max_results=5)
-        st.markdown(f"<div class='card'><h3>{item['name']}</h3>{info_html}<hr><div class='scroll-area'>", unsafe_allow_html=True)
-        render_tiles(news)
-        st.markdown("</div></div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
+        card_html = f"<div class='card'><h3>{item['name']}</h3>{info_html}<hr><div class='scroll-area'>"
+        for n in news:
+            title = n.get("title", "Untitled")
+            summ = (n.get("summary") or "").strip()
+            sent, _ = sentiment(f"{title}. {summ}")
+            badge = badge_for_sentiment(sent)
+            card_html += f"""
+            <div style="border:1px solid #e2e8f0;border-radius:10px;
+            box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div style="font-weight:600;font-size:14px;line-height:1.3;">{title}</div>
+                <div>{badge}</div>
+              </div>
+              <div style="color:#475569;font-size:13px;min-height:40px;">{summ[:180] + ('…' if len(summ)>180 else '')}</div>
+              <div style="margin-top:8px;font-size:12px;color:#64748b;">{n.get('published','')}</div>
+              <div style="margin-top:8px;">
+                <a href="{n.get('link','#')}" target="_blank"
+                   style="text-decoration:none;background:#0ea5e9;color:white;
+                   padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
+              </div>
+            </div>
+            """
+        card_html += "</div></div>"
+        html += card_html
+
+    html += "</div>"
+    st.markdown(html, unsafe_allow_html=True)
+
+# ---------------------------
+# Tabs Rendering
+# ---------------------------
 with tab_persons:
     board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
     render_entity_grid(st.session_state.state["persons"], lambda p: f"<p><b>Company:</b> {p.get('company','-')}</p>")
@@ -304,7 +302,7 @@ with tab_products:
     render_entity_grid(st.session_state.state["products"], lambda p: f"<p><b>Category:</b> {p.get('category','')}</p><p><b>Focus:</b> {p.get('focus','')}</p>")
 
 # ---------------------------
-# ADMIN TAB (unchanged)
+# Admin Tab
 # ---------------------------
 if tab_admin:
     with tab_admin:
