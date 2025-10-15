@@ -40,7 +40,7 @@ DEFAULT_USER = {
 }
 
 # ---------------------------
-# Product Info + Logos
+# Product Information + Logos
 # ---------------------------
 PRODUCTS = {
     "OpenAI": {
@@ -86,14 +86,21 @@ PRODUCTS = {
 }
 
 PRODUCT_LOGOS = {
-    "OpenAI": "https://upload.wikimedia.org/wikipedia/commons/4/4d/OpenAI_Logo.svg",
-    "ServiceNow": "https://upload.wikimedia.org/wikipedia/commons/6/64/ServiceNow_logo.svg",
-    "Snowflake": "https://upload.wikimedia.org/wikipedia/commons/f/ff/Snowflake_Logo.svg",
-    "Databricks": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Databricks_logo.svg",
-    "Palantir": "https://upload.wikimedia.org/wikipedia/commons/2/28/Palantir_Technologies_logo.svg",
-    "Gemini AI": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Google_Gemini_logo.svg",
-    "Salesforce": "https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg",
-    "Nvidia": "https://upload.wikimedia.org/wikipedia/en/2/21/Nvidia_logo.svg"
+    "OpenAI": "https://cdn-icons-png.flaticon.com/512/5968/5968705.png",
+    "ServiceNow": "https://1000logos.net/wp-content/uploads/2021/05/ServiceNow-logo.png",
+    "Snowflake": "https://companieslogo.com/img/orig/SNOW_BIG.D-7a22d6cb.png?t=1723547138",
+    "Databricks": "https://companieslogo.com/img/orig/DATB_BIG.D-9995c3c8.png?t=1723547138",
+    "Palantir": "https://companieslogo.com/img/orig/PLTR_BIG.D-5f1d2b1e.png?t=1723547138",
+    "Gemini AI": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Google_Gemini_logo.png",
+    "Salesforce": "https://1000logos.net/wp-content/uploads/2016/10/Salesforce-Logo.png",
+    "Nvidia": "https://companieslogo.com/img/orig/NVDA_BIG-1c26b71b.png?t=1723547138"
+}
+
+COMPANY_LOGOS = {
+    "Google": "https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg",
+    "Microsoft": "https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg",
+    "Amazon": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+    "Apple": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg",
 }
 
 # ---------------------------
@@ -188,6 +195,7 @@ box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background
             unsafe_allow_html=True,
         )
 
+
 # ---------------------------
 # Session & State
 # ---------------------------
@@ -243,7 +251,7 @@ else:
     tab_admin = None
 
 # ---------------------------
-# Helper for unified header
+# Unified Header
 # ---------------------------
 def board_header(title: str, subtitle: str):
     st.markdown(f"""
@@ -284,6 +292,14 @@ with tab_companies:
         cols = st.columns(min(len(companies), 4))
         for idx, c in enumerate(companies):
             with cols[idx % 4]:
+                logo = COMPANY_LOGOS.get(c["name"])
+                if logo:
+                    try:
+                        st.image(logo, width=80)
+                    except:
+                        st.markdown("🏢")
+                else:
+                    st.markdown("🏢")
                 st.markdown(f"### {c['name']}")
                 st.caption(f"**Region:** {c.get('location','Global')}")
                 st.markdown("---")
@@ -300,9 +316,14 @@ with tab_products:
     for idx, pname in enumerate(product_names):
         info = PRODUCTS[pname]
         with cols[idx % 4]:
-            logo = PRODUCT_LOGOS.get(pname, None)
+            logo = PRODUCT_LOGOS.get(pname)
             if logo:
-                st.image(logo, width=80)
+                try:
+                    st.image(logo, width=80)
+                except:
+                    st.markdown("🧩")
+            else:
+                st.markdown("🧩")
             st.markdown(f"### {pname}")
             st.caption(f"**Category:** {info['category']}")
             st.caption(f"**Focus:** {info['focus']}")
