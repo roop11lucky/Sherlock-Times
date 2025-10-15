@@ -1,18 +1,33 @@
 {
-  "companies": [
-    {"name": "Google", "location": "IN"},
-    {"name": "Microsoft", "location": "US"}
-  ],
-  "persons": [
-    {"name": "Sundar Pichai", "company": "Google"},
-    {"name": "Satya Nadella", "company": "Microsoft"}
-  ],
-  "products": [
-    {"name": "OpenAI", "category": "Generative AI / API Platform",
-     "focus": "GPT models, multimodal AI, API ecosystem, and enterprise integrations"},
-    {"name": "ServiceNow", "category": "Digital Workflow / ITSM",
-     "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"},
-    {"name": "Snowflake", "category": "Cloud Data Platform",
-     "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"}
-  ]
+  "meta": {
+    "updated_at": null,
+    "version": "1.1.1"
+  },
+  "companies": {
+    "google-uuid": {
+      "name": "Google",
+      "site": "",
+      "category": "",
+      "location": "IN",
+      "people": [
+        {"id": "p1", "name": "Sundar Pichai", "role": "CEO", "link": ""}
+      ],
+      "products": [
+        {"id": "prod1", "name": "OpenAI", "desc": "GPT models, multimodal AI, API ecosystem, and enterprise integrations", "link": "", "tags": ["Generative AI", "API Platform"]}
+      ]
+    },
+    "microsoft-uuid": {
+      "name": "Microsoft",
+      "site": "",
+      "category": "",
+      "location": "US",
+      "people": [
+        {"id": "p2", "name": "Satya Nadella", "role": "CEO", "link": ""}
+      ],
+      "products": [
+        {"id": "prod2", "name": "ServiceNow", "desc": "Flow Designer, platform automation, Now Assist, and AI integrations", "link": "", "tags": ["Digital Workflow", "ITSM"]},
+        {"id": "prod3", "name": "Snowflake", "desc": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads", "link": "", "tags": ["Cloud Data Platform"]}
+      ]
+    }
+  }
 }
