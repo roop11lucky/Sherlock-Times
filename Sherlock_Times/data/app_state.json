@@ -1,6 +1,6 @@
 {
   "meta": {
-    "updated_at": null,
+    "updated_at": "2025-10-15T17:09:51.380263",
     "version": "1.1.1"
   },
   "companies": {
@@ -13,7 +13,13 @@
         {"id": "p1", "name": "Sundar Pichai", "role": "CEO", "link": ""}
       ],
       "products": [
-        {"id": "prod1", "name": "OpenAI", "desc": "GPT models, multimodal AI, API ecosystem, and enterprise integrations", "link": "", "tags": ["Generative AI", "API Platform"]}
+        {
+          "id": "prod1",
+          "name": "OpenAI",
+          "desc": "GPT models, multimodal AI, API ecosystem, and enterprise integrations",
+          "link": "",
+          "tags": ["Generative AI", "API Platform"]
+        }
       ]
     },
     "microsoft": {
@@ -25,8 +31,20 @@
         {"id": "p2", "name": "Satya Nadella", "role": "CEO", "link": ""}
       ],
       "products": [
-        {"id": "prod2", "name": "ServiceNow", "desc": "Flow Designer, platform automation, Now Assist, and AI integrations", "link": "", "tags": ["Digital Workflow", "ITSM"]},
-        {"id": "prod3", "name": "Snowflake", "desc": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads", "link": "", "tags": ["Cloud Data Platform"]}
+        {
+          "id": "prod2",
+          "name": "ServiceNow",
+          "desc": "Flow Designer, platform automation, Now Assist, and AI integrations",
+          "link": "",
+          "tags": ["Digital Workflow", "ITSM"]
+        },
+        {
+          "id": "prod3",
+          "name": "Snowflake",
+          "desc": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads",
+          "link": "",
+          "tags": ["Cloud Data Platform"]
+        }
       ]
     }
   }
