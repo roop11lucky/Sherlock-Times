@@ -259,21 +259,27 @@ with tab_companies:
         render_tiles(news_items, cols=3)
 
 # ---------------------------
-# Tab 3: Products
+# Tab 3: Products  (auto-display for all)
 # ---------------------------
 with tab_products:
     st.subheader("🧩 Product Intelligence Hub")
-    selected_product = st.selectbox("Select Product", list(PRODUCTS.keys()))
-    info = PRODUCTS[selected_product]
 
-    st.markdown(f"### 📦 {selected_product}")
-    st.markdown(f"**Category:** {info['category']}")
-    st.markdown(f"**Focus Areas:** {info['focus']}")
-    st.markdown("---")
-    st.markdown(f"### 📰 Latest Updates about {selected_product}")
-    query = info["keywords"]
-    product_news = google_news_rss(query, max_results=8)
-    render_tiles(product_news, cols=3)
+    for product_name, info in PRODUCTS.items():
+        st.markdown(f"### 🧩 {product_name}")
+        st.markdown(f"**Category:** {info['category']}")
+        st.markdown(f"**Focus Areas:** {info['focus']}")
+        st.caption("🔍 Tracking product-level innovation, feature updates, integrations, and AI trends.")
+        st.markdown("---")
+
+        query = info["keywords"]
+        product_news = google_news_rss(query, max_results=6)
+
+        if not product_news:
+            st.info(f"No recent updates found for {product_name}.")
+        else:
+            render_tiles(product_news, cols=3)
+
+        st.markdown("<hr style='border:1px solid #ccc;margin:30px 0;'>", unsafe_allow_html=True)
 
 # ---------------------------
 # Tab 4: Admin
