@@ -22,20 +22,20 @@ USER_FILE = os.path.join("data", "users.json")
 analyzer = SentimentIntensityAnalyzer()
 
 # ---------------------------
-# Custom CSS (Trello-style Grid)
+# Custom Trello Grid CSS
 # ---------------------------
 st.markdown("""
 <style>
-.grid-container {
+.grid-board {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
   justify-content: flex-start;
-  align-items: stretch;
+  align-items: flex-start;
+  gap: 18px;
 }
 
-.grid-item {
-  flex: 1 1 calc(25% - 20px);
+.card {
+  flex: 1 1 calc(25% - 18px);
   min-width: 320px;
   max-width: 400px;
   background: #f8fafc;
@@ -44,43 +44,52 @@ st.markdown("""
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-height: 520px;   /* equal height for perfect alignment */
-  overflow: hidden;
+  min-height: 500px;
+  box-sizing: border-box;
 }
 
-.grid-item h3 {
+.card h3 {
   margin-top: 0;
+  margin-bottom: 5px;
   color: #0f172a;
 }
 
-.grid-item hr {
-  border: 0.5px solid #e2e8f0;
+.card p {
+  margin: 3px 0;
+}
+
+.card hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
   margin: 8px 0;
 }
 
-.news-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px;
-  background: white;
-  margin-bottom: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-  overflow: hidden;
+.scroll-area {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.card::-webkit-scrollbar {
+  width: 5px;
+}
+.card::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
 }
 
 @media (max-width: 1000px) {
-  .grid-item { flex: 1 1 calc(50% - 20px); }
+  .card { flex: 1 1 calc(50% - 18px); }
 }
 
 @media (max-width: 600px) {
-  .grid-item { flex: 1 1 100%; }
+  .card { flex: 1 1 100%; }
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------
-# Default Seeds
+# Default Data
 # ---------------------------
 DEFAULT_STATE = {
     "companies": [
@@ -111,12 +120,10 @@ DEFAULT_STATE = {
     ]
 }
 
-DEFAULT_USER = {
-    "admin": {"username": "sherlock", "password": "sherlock123"}
-}
+DEFAULT_USER = {"admin": {"username": "sherlock", "password": "sherlock123"}}
 
 # ---------------------------
-# Storage
+# Storage Helpers
 # ---------------------------
 def load_state() -> Dict[str, Any]:
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
@@ -130,12 +137,10 @@ def load_state() -> Dict[str, Any]:
             state[key] = DEFAULT_STATE[key]
     return state
 
-
 def save_state(state: Dict[str, Any]) -> None:
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
-
 
 def load_users():
     os.makedirs(os.path.dirname(USER_FILE), exist_ok=True)
@@ -146,11 +151,10 @@ def load_users():
     with open(USER_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 users = load_users()
 
 # ---------------------------
-# Helpers
+# Utility Functions
 # ---------------------------
 def google_news_rss(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
     q = requests.utils.quote(query)
@@ -166,7 +170,6 @@ def google_news_rss(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         })
     return items
 
-
 def sentiment(text: str) -> Tuple[str, float]:
     s = analyzer.polarity_scores(text or "")
     c = s["compound"]
@@ -176,11 +179,9 @@ def sentiment(text: str) -> Tuple[str, float]:
         return "Negative", c
     return "Neutral", c
 
-
 def badge_for_sentiment(label: str) -> str:
     colors = {"Positive": "#22c55e", "Neutral": "#64748b", "Negative": "#ef4444"}
     return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
-
 
 def render_cards(items: List[Dict[str, Any]]):
     for card in items:
@@ -189,7 +190,9 @@ def render_cards(items: List[Dict[str, Any]]):
         sent, _ = sentiment(f"{title}. {summ}")
         st.markdown(
             f"""
-            <div class="news-card">
+            <div style="border:1px solid #e2e8f0;border-radius:8px;
+            padding:8px;background:white;margin-bottom:8px;
+            box-shadow:0 1px 2px rgba(0,0,0,0.04);">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                 <div style="font-weight:600;font-size:14px;line-height:1.3;">{title}</div>
                 <div>{badge_for_sentiment(sent)}</div>
@@ -207,15 +210,17 @@ def render_cards(items: List[Dict[str, Any]]):
         )
 
 # ---------------------------
-# Session & Header
+# Session
 # ---------------------------
 if "state" not in st.session_state:
     st.session_state.state = load_state()
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
+# ---------------------------
+# Header Section
+# ---------------------------
 st.title(APP_TITLE)
-
 colA, colB, colC = st.columns([1, 5, 1])
 with colA:
     refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0)
@@ -247,30 +252,22 @@ st.markdown("---")
 # Tabs
 # ---------------------------
 if st.session_state.is_admin:
-    tab_persons, tab_companies, tab_products, tab_admin = st.tabs(
-        ["🧑 Persons", "🏢 Companies", "🧩 Products", "⚙️ Admin"]
-    )
+    tab_persons, tab_companies, tab_products, tab_admin = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products", "⚙️ Admin"])
 else:
-    tab_persons, tab_companies, tab_products = st.tabs(
-        ["🧑 Persons", "🏢 Companies", "🧩 Products"]
-    )
+    tab_persons, tab_companies, tab_products = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products"])
     tab_admin = None
 
-
 def board_header(title: str, subtitle: str):
-    st.markdown(
-        f"""
+    st.markdown(f"""
     <div style='text-align:center;padding:12px;background:#f8fafc;
     border-radius:8px;margin-bottom:20px;'>
       <h2 style='margin-bottom:4px;'>{title}</h2>
       <p style='color:#475569;font-size:15px;'>{subtitle}</p>
     </div>
-    """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
 # ---------------------------
-# Persons Grid
+# Person Board
 # ---------------------------
 with tab_persons:
     board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
@@ -278,16 +275,16 @@ with tab_persons:
     if not persons:
         st.info("No persons added yet.")
     else:
-        st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
         for p in persons:
-            st.markdown(f"<div class='grid-item'><h3>{p['name']}</h3><p><b>Company:</b> {p.get('company','-')}</p><hr>", unsafe_allow_html=True)
             news = google_news_rss(p["name"], max_results=4)
+            st.markdown(f"<div class='card'><h3>{p['name']}</h3><p><b>Company:</b> {p.get('company','-')}</p><hr><div class='scroll-area'>", unsafe_allow_html=True)
             render_cards(news)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------
-# Companies Grid
+# Company Board
 # ---------------------------
 with tab_companies:
     board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
@@ -295,16 +292,16 @@ with tab_companies:
     if not companies:
         st.info("No companies added yet.")
     else:
-        st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
         for c in companies:
-            st.markdown(f"<div class='grid-item'><h3>{c['name']}</h3><p><b>Region:</b> {c.get('location','Global')}</p><hr>", unsafe_allow_html=True)
             news = google_news_rss(c["name"], max_results=4)
+            st.markdown(f"<div class='card'><h3>{c['name']}</h3><p><b>Region:</b> {c.get('location','Global')}</p><hr><div class='scroll-area'>", unsafe_allow_html=True)
             render_cards(news)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------
-# Products Grid
+# Product Board
 # ---------------------------
 with tab_products:
     board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
@@ -312,12 +309,12 @@ with tab_products:
     if not products:
         st.info("No products added yet.")
     else:
-        st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-board'>", unsafe_allow_html=True)
         for p in products:
-            st.markdown(f"<div class='grid-item'><h3>{p['name']}</h3><p><b>Category:</b> {p.get('category','')}</p><p><b>Focus:</b> {p.get('focus','')}</p><hr>", unsafe_allow_html=True)
             news = google_news_rss(p["name"], max_results=4)
+            st.markdown(f"<div class='card'><h3>{p['name']}</h3><p><b>Category:</b> {p.get('category','')}</p><p><b>Focus:</b> {p.get('focus','')}</p><hr><div class='scroll-area'>", unsafe_allow_html=True)
             render_cards(news)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------
