@@ -40,7 +40,7 @@ DEFAULT_USER = {
 }
 
 # ---------------------------
-# Product Information (True Product Context)
+# Product Information
 # ---------------------------
 PRODUCTS = {
     "OpenAI": {
@@ -152,36 +152,30 @@ def badge_for_sentiment(label: str) -> str:
     return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
 
 
-def render_tiles(items: List[Dict[str, Any]], cols: int = 3):
+def render_tiles(items: List[Dict[str, Any]], cols: int = 1):
     if not items:
         st.info("No items found.")
         return
-    for i in range(0, len(items), cols):
-        row = st.columns(cols)
-        for j, card in enumerate(items[i:i + cols]):
-            with row[j]:
-                title = card.get("title", "Untitled")
-                summ = (card.get("summary") or "").strip()
-                sent, score = sentiment(f"{title}. {summ}")
-                st.markdown(
-                    f"""
-<div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px;height:100%;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-    <div style="font-weight:600;font-size:15px;line-height:1.3;">{title}</div>
+    for card in items:
+        title = card.get("title", "Untitled")
+        summ = (card.get("summary") or "").strip()
+        sent, score = sentiment(f"{title}. {summ}")
+        st.markdown(
+            f"""
+<div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:10px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <div style="font-weight:600;font-size:14px;line-height:1.3;">{title}</div>
     <div>{badge_for_sentiment(sent)}</div>
   </div>
-  <div style="color:#475569;font-size:13px;min-height:52px;">{summ[:220] + ('…' if len(summ)>220 else '')}</div>
-  <div style="margin-top:10px;font-size:12px;color:#64748b;">
-    {card.get('published','')}
-  </div>
+  <div style="color:#475569;font-size:13px;min-height:40px;">{summ[:200] + ('…' if len(summ)>200 else '')}</div>
+  <div style="margin-top:8px;font-size:12px;color:#64748b;">{card.get('published','')}</div>
   <div style="margin-top:8px;">
     <a href="{card.get('link','#')}" target="_blank" style="text-decoration:none;background:#0ea5e9;color:white;padding:6px 10px;border-radius:8px;font-size:12px;">Open</a>
   </div>
 </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
+            """,
+            unsafe_allow_html=True,
+        )
 
 # ---------------------------
 # Session & State
@@ -225,6 +219,12 @@ with colC:
 
 st.markdown("---")
 
+# Enable horizontal scroll for Kanban layout
+st.markdown(
+    "<style>div[data-testid='stHorizontalBlock']{overflow-x:auto;}</style>",
+    unsafe_allow_html=True,
+)
+
 # ---------------------------
 # Tabs
 # ---------------------------
@@ -235,54 +235,72 @@ else:
     tab_admin = None
 
 # ---------------------------
-# Tab 1: Persons
+# Tab 1: Persons (Trello-style)
 # ---------------------------
 with tab_persons:
     persons = st.session_state.state.get("persons", [])
-    st.subheader("Latest News about People")
-    for p in persons:
-        st.markdown(f"### 🧑 {p['name']} ({p.get('company','')})")
-        person_news = google_news_rss(p["name"], max_results=6)
-        if p.get("company"):
-            person_news += google_news_rss(f'{p["name"]} {p["company"]}', max_results=6)
-        render_tiles(person_news, cols=3)
+    st.subheader("🧑 Person Intelligence Board")
+
+    if not persons:
+        st.info("No persons added yet.")
+    else:
+        cols = st.columns(len(persons))
+        for idx, p in enumerate(persons):
+            with cols[idx]:
+                st.markdown(f"### 🧑 {p['name']}")
+                st.caption(f"**Company:** {p.get('company','-')}")
+                st.markdown("---")
+
+                person_news = google_news_rss(p["name"], max_results=4)
+                if p.get("company"):
+                    person_news += google_news_rss(f'{p["name"]} {p["company"]}', max_results=2)
+
+                render_tiles(person_news, cols=1)
 
 # ---------------------------
-# Tab 2: Companies
+# Tab 2: Companies (Trello-style)
 # ---------------------------
 with tab_companies:
     companies = st.session_state.state.get("companies", [])
-    st.subheader("Company-wise News")
-    for c in companies:
-        st.markdown(f"### 🏢 {c['name']} ({c.get('location','Global')})")
-        news_items = google_news_rss(c["name"], max_results=6)
-        render_tiles(news_items, cols=3)
+    st.subheader("🏢 Company Intelligence Board")
+
+    if not companies:
+        st.info("No companies added yet.")
+    else:
+        cols = st.columns(len(companies))
+        for idx, c in enumerate(companies):
+            with cols[idx]:
+                st.markdown(f"### 🏢 {c['name']}")
+                st.caption(f"**Region:** {c.get('location','Global')}")
+                st.markdown("---")
+
+                news_items = google_news_rss(c["name"], max_results=6)
+                render_tiles(news_items, cols=1)
 
 # ---------------------------
-# Tab 3: Products  (auto-display for all)
+# Tab 3: Products (Trello-style)
 # ---------------------------
 with tab_products:
-    st.subheader("🧩 Product Intelligence Hub")
+    st.subheader("🧩 Product Intelligence Board")
+    st.caption("📊 Real-time updates and trends from top tech products.")
 
-    for product_name, info in PRODUCTS.items():
-        st.markdown(f"### 🧩 {product_name}")
-        st.markdown(f"**Category:** {info['category']}")
-        st.markdown(f"**Focus Areas:** {info['focus']}")
-        st.caption("🔍 Tracking product-level innovation, feature updates, integrations, and AI trends.")
-        st.markdown("---")
+    product_names = list(PRODUCTS.keys())
+    cols = st.columns(len(product_names))
 
-        query = info["keywords"]
-        product_news = google_news_rss(query, max_results=6)
+    for idx, product_name in enumerate(product_names):
+        info = PRODUCTS[product_name]
+        with cols[idx]:
+            st.markdown(f"### 🧩 {product_name}")
+            st.caption(f"**Category:** {info['category']}")
+            st.caption(f"**Focus:** {info['focus']}")
+            st.markdown("---")
 
-        if not product_news:
-            st.info(f"No recent updates found for {product_name}.")
-        else:
-            render_tiles(product_news, cols=3)
-
-        st.markdown("<hr style='border:1px solid #ccc;margin:30px 0;'>", unsafe_allow_html=True)
+            query = info["keywords"]
+            product_news = google_news_rss(query, max_results=5)
+            render_tiles(product_news, cols=1)
 
 # ---------------------------
-# Tab 4: Admin
+# Tab 4: Admin Panel (unchanged)
 # ---------------------------
 if tab_admin:
     with tab_admin:
