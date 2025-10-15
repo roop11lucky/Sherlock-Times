@@ -1,30 +1,98 @@
+# streamlit_app.py
+
 import os
 import json
+import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Tuple
 
 import streamlit as st
-import feedparser
-import requests
-from bs4 import BeautifulSoup
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from streamlit_autorefresh import st_autorefresh
+
+# Optional imports from your older stack; keeping these so your env doesn't break
+# Remove if you truly don't use them anywhere else.
+try:
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+    analyzer = SentimentIntensityAnalyzer()
+except Exception:
+    analyzer = None
 
 # ---------------------------
 # App Config
 # ---------------------------
-st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
+st.set_page_config(page_title="🕵️ Sherlock Times", page_icon="🕵️", layout="wide")
 
-APP_TITLE = "🕵️ Sherlock Times – Company, Person & Product News Dashboard"
-DATA_PATH = os.path.join("data", "app_state.json")
-USER_FILE = os.path.join("data", "users.json")
+APP_TITLE = "🕵️ Sherlock Times – Company, People & Product News Dashboard"
 
-analyzer = SentimentIntensityAnalyzer()
+DATA_DIR = "data"
+DATA_PATH = os.path.join(DATA_DIR, "app_state.json")
+USER_FILE = os.path.join(DATA_DIR, "users.json")
 
 # ---------------------------
-# CSS Grid Layout (Trello-style)
+# Ensure data directory/files
 # ---------------------------
-st.markdown("""
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DEFAULT_STATE = {
+    "meta": {"updated_at": None, "version": "1.1.0"},
+    "companies": {
+        # "company_id": {
+        #     "name": "Acme Corp",
+        #     "site": "https://acme.example.com",
+        #     "category": "Technology",
+        #     "people": [
+        #         {"id": "uuid", "name": "Jane Doe", "role": "CTO", "link": "https://..."}
+        #     ],
+        #     "products": [
+        #         {"id": "uuid", "name": "RoadRunner 2.0", "desc": "High-speed...", "link": "https://...", "tags": ["ai","cloud"]}
+        #     ]
+        # }
+    }
+}
+
+DEFAULT_USERS = {
+    "users": [
+        # 🔐 Default admin (change this in users.json after first run)
+        {"username": "admin", "password": "admin123", "role": "admin"}
+    ]
+}
+
+def _atomic_write_json(path: str, data: dict):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+    os.replace(tmp, path)
+
+def load_state() -> dict:
+    if not os.path.exists(DATA_PATH):
+        state = DEFAULT_STATE.copy()
+        state["meta"]["updated_at"] = datetime.utcnow().isoformat()
+        _atomic_write_json(DATA_PATH, state)
+        return state
+    with open(DATA_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_state(state: dict):
+    state["meta"]["updated_at"] = datetime.utcnow().isoformat()
+    _atomic_write_json(DATA_PATH, state)
+
+def load_users() -> dict:
+    if not os.path.exists(USER_FILE):
+        _atomic_write_json(USER_FILE, DEFAULT_USERS)
+        return DEFAULT_USERS
+    with open(USER_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def verify_user(username: str, password: str) -> Tuple[bool, str]:
+    users = load_users().get("users", [])
+    for u in users:
+        if u.get("username") == username and u.get("password") == password:
+            return True, u.get("role", "viewer")
+    return False, "viewer"
+
+# ---------------------------
+# UI Helpers (Cards & Layout)
+# ---------------------------
+CARD_CSS = """
 <style>
 .grid-board {
   display: flex;
@@ -33,378 +101,378 @@ st.markdown("""
   align-items: stretch;
   gap: 18px;
 }
-
 .card {
   flex: 1 1 calc(25% - 18px);
-  min-width: 320px;
-  max-width: 400px;
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 15px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  display: flex;
-  flex-direction: column;
-  height: 520px;
-  box-sizing: border-box;
+  min-width: 280px;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  padding: 16px;
+  border: 1px solid rgba(0,0,0,0.06);
 }
-
 .card h3 {
-  margin-top: 0;
-  margin-bottom: 5px;
-  color: #0f172a;
+  margin: 0 0 6px 0;
+  font-size: 1.05rem;
 }
-
-.card p { margin: 3px 0; }
-
-.card hr {
+.card .subtle {
+  color: #6b7280;
+  font-size: 0.86rem;
+  margin-bottom: 8px;
+}
+.tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  margin-right: 6px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+}
+.kv {
+  font-size: 0.88rem;
+  margin-top: 8px;
+}
+.kv span {
+  color: #374151;
+}
+.section-title {
+  font-weight: 700;
+  margin: 10px 0 4px 0;
+}
+hr.sep {
   border: none;
-  border-top: 1px solid #e2e8f0;
-  margin: 8px 0;
+  border-top: 1px dashed #e5e7eb;
+  margin: 12px 0;
 }
-
-.scroll-area {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding-right: 5px;
-}
-
-.scroll-area::-webkit-scrollbar { width: 5px; }
-.scroll-area::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 4px;
-}
-
-@media (max-width: 1200px) {
-  .card { flex: 1 1 calc(33.33% - 18px); }
-}
-
-@media (max-width: 900px) {
-  .card { flex: 1 1 calc(50% - 18px); }
-}
-
-@media (max-width: 600px) {
-  .card { flex: 1 1 100%; }
+.small-note {
+  font-size: 0.8rem;
+  color: #6b7280;
 }
 </style>
-""", unsafe_allow_html=True)
+"""
+st.markdown(CARD_CSS, unsafe_allow_html=True)
+
+def company_card(c: dict):
+    name = c.get("name", "—")
+    site = c.get("site") or ""
+    cat = c.get("category") or "Uncategorized"
+    people = c.get("people", [])
+    products = c.get("products", [])
+    st.markdown(
+        f"""
+        <div class="card">
+            <h3>{name}</h3>
+            <div class="subtle">{cat}</div>
+            <hr class="sep" />
+            <div class="section-title">People</div>
+            <div class="kv"><span>{len(people)}</span> listed</div>
+            <div class="section-title" style="margin-top:10px;">Products</div>
+            <div class="kv"><span>{len(products)}</span> listed</div>
+            {'<hr class="sep" />' if site else ''}
+            {f'<div class="small-note">🌐 <a href="{site}" target="_blank">{site}</a></div>' if site else ''}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+def person_chip(p: dict) -> str:
+    nm = p.get("name","—")
+    rl = p.get("role","")
+    ln = p.get("link","")
+    tip = f"{nm} – {rl}" if rl else nm
+    if ln:
+        return f'<span class="tag"><a href="{ln}" target="_blank" title="{tip}">{nm}</a></span>'
+    return f'<span class="tag" title="{tip}">{nm}</span>'
+
+def product_chip(p: dict) -> str:
+    nm = p.get("name","—")
+    desc = p.get("desc","")
+    ln = p.get("link","")
+    tip = f"{nm} – {desc[:80]}{'…' if len(desc)>80 else ''}"
+    if ln:
+        return f'<span class="tag"><a href="{ln}" target="_blank" title="{tip}">{nm}</a></span>'
+    return f'<span class="tag" title="{tip}">{nm}</span>'
 
 # ---------------------------
-# Default Seeds
+# Session Auth
 # ---------------------------
-DEFAULT_STATE = {
-    "companies": [
-        {"name": "Google", "location": "IN"},
-        {"name": "Microsoft", "location": "US"}
-    ],
-    "persons": [
-        {"name": "Sundar Pichai", "company": "Google"},
-        {"name": "Satya Nadella", "company": "Microsoft"}
-    ],
-    "products": [
-        {"name": "OpenAI", "category": "Generative AI / API Platform",
-         "focus": "GPT models, multimodal AI, API ecosystem, and enterprise integrations"},
-        {"name": "ServiceNow", "category": "Digital Workflow / ITSM",
-         "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"},
-        {"name": "Snowflake", "category": "Cloud Data Platform",
-         "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"},
-        {"name": "Databricks", "category": "Data & AI Platform",
-         "focus": "Lakehouse architecture, MLflow, Delta Live Tables, and Unity Catalog"},
-        {"name": "Palantir", "category": "Enterprise AI / Data Intelligence",
-         "focus": "Foundry, AIP, operational AI, and defense applications"},
-        {"name": "Gemini AI", "category": "Multimodal AI Model",
-         "focus": "Gemini models, multimodal reasoning, and integration with Google Workspace"},
-        {"name": "Salesforce", "category": "CRM / Business Cloud",
-         "focus": "Einstein AI, Data Cloud, automation, and GPT-powered CRM features"},
-        {"name": "Nvidia", "category": "AI Hardware & Computing",
-         "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"}
-    ]
-}
+if "auth" not in st.session_state:
+    st.session_state.auth = {"logged_in": False, "role": "viewer", "username": None}
 
-DEFAULT_USER = {"admin": {"username": "sherlock", "password": "sherlock123"}}
+def do_login():
+    with st.sidebar:
+        st.markdown("### 🔐 Admin Login")
+        with st.form("login_form", clear_on_submit=False):
+            u = st.text_input("Username", value="", autocomplete="username")
+            p = st.text_input("Password", value="", type="password", autocomplete="current-password")
+            submitted = st.form_submit_button("Login")
+        if submitted:
+            ok, role = verify_user(u, p)
+            if ok:
+                st.session_state.auth = {"logged_in": True, "role": role, "username": u}
+                st.success("Logged in successfully.")
+            else:
+                st.error("Invalid credentials.")
+
+def do_logout():
+    with st.sidebar:
+        if st.session_state.auth.get("logged_in"):
+            if st.button("Logout"):
+                st.session_state.auth = {"logged_in": False, "role": "viewer", "username": None}
+                st.info("Logged out.")
 
 # ---------------------------
-# Storage
-# ---------------------------
-def load_state() -> Dict[str, Any]:
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-    if not os.path.exists(DATA_PATH):
-        save_state(DEFAULT_STATE)
-        return DEFAULT_STATE
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
-        state = json.load(f)
-    for key in ["companies", "persons", "products"]:
-        if key not in state:
-            state[key] = DEFAULT_STATE[key]
-    return state
-
-
-def save_state(state: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2, ensure_ascii=False)
-
-
-def load_users():
-    os.makedirs(os.path.dirname(USER_FILE), exist_ok=True)
-    if not os.path.exists(USER_FILE):
-        with open(USER_FILE, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_USER, f, indent=2)
-        return DEFAULT_USER
-    with open(USER_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-users = load_users()
-
-# ---------------------------
-# Helpers
-# ---------------------------
-def google_news_rss(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
-    q = requests.utils.quote(query)
-    url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
-    feed = feedparser.parse(url)
-    items = []
-    for e in feed.entries[:max_results]:
-        items.append({
-            "title": e.title,
-            "link": e.link,
-            "published": getattr(e, "published", ""),
-            "summary": BeautifulSoup(getattr(e, "summary", ""), "html.parser").get_text()
-        })
-    return items
-
-
-def sentiment(text: str) -> Tuple[str, float]:
-    s = analyzer.polarity_scores(text or "")
-    c = s["compound"]
-    if c >= 0.05:
-        return "Positive", c
-    if c <= -0.05:
-        return "Negative", c
-    return "Neutral", c
-
-
-def badge_for_sentiment(label: str) -> str:
-    colors = {"Positive": "#22c55e", "Neutral": "#64748b", "Negative": "#ef4444"}
-    return f'<span style="background:{colors[label]};color:white;padding:2px 8px;border-radius:999px;font-size:12px;">{label}</span>'
-
-# ---------------------------
-# Session Init (Always Load Latest)
-# ---------------------------
-st.session_state.state = load_state()
-if "is_admin" not in st.session_state:
-    st.session_state.is_admin = False
-
-# ---------------------------
-# Header + Refresh
+# App Title / Header
 # ---------------------------
 st.title(APP_TITLE)
-colA, colB, colC = st.columns([1, 5, 1])
-with colA:
-    refresh_minutes = st.selectbox("⏱ Refresh every:", [0, 5, 15, 30, 60], index=0)
-    if refresh_minutes > 0:
-        st_autorefresh(interval=refresh_minutes * 60 * 1000, key="auto_refresh")
-with colB:
-    tz_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    st.caption(f"⏱ Last Fetched: {tz_now}")
-with colC:
-    if not st.session_state.is_admin:
-        with st.expander("🔐 Admin Login"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            if st.button("Login"):
-                stored = users.get("admin", {})
-                if username == stored.get("username") and password == stored.get("password"):
-                    st.session_state.is_admin = True
-                    st.success("✅ Admin login successful!")
-                else:
-                    st.error("❌ Invalid credentials")
-    else:
-        if st.button("🚪 Logout"):
-            st.session_state.is_admin = False
-            st.success("Logged out")
+meta_col1, meta_col2, meta_col3 = st.columns([2,1,1])
 
-st.markdown("---")
+state = load_state()
+updated_at = state.get("meta",{}).get("updated_at")
+with meta_col1:
+    st.caption(f"Last Updated (UTC): {updated_at if updated_at else '—'}")
+with meta_col2:
+    st.caption(f"Companies: {len(state.get('companies',{}))}")
+with meta_col3:
+    if st.session_state.auth.get("logged_in"):
+        st.caption(f"Role: {st.session_state.auth.get('role','viewer')}")
+
+# Sidebar auth
+do_login()
+do_logout()
 
 # ---------------------------
-# Reload & Debug Controls
+# Tabs (Admin only visible when logged in)
 # ---------------------------
-reload_col1, reload_col2 = st.columns([1, 1])
-with reload_col1:
-    if st.button("🔁 Reload from JSON"):
-        st.session_state.state = load_state()
-        st.success("✅ Reloaded dashboard data from app_state.json")
-
-with reload_col2:
-    with st.expander("📁 View Current Data (Debug)"):
-        st.json(st.session_state.state)
-
-# ---------------------------
-# Tabs
-# ---------------------------
-if st.session_state.is_admin:
-    tab_persons, tab_companies, tab_products, tab_admin = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products", "⚙️ Admin"])
+base_tabs = ["🏢 Companies", "🧑‍💼 People", "🧰 Products"]
+if st.session_state.auth.get("logged_in"):
+    tabs = base_tabs + ["⚙️ Admin"]
 else:
-    tab_persons, tab_companies, tab_products = st.tabs(["🧑 Persons", "🏢 Companies", "🧩 Products"])
-    tab_admin = None
+    tabs = base_tabs
 
-
-def board_header(title: str, subtitle: str):
-    st.markdown(f"""
-    <div style='text-align:center;padding:12px;background:#f8fafc;border-radius:8px;margin-bottom:20px;'>
-      <h2 style='margin-bottom:4px;'>{title}</h2>
-      <p style='color:#475569;font-size:15px;'>{subtitle}</p>
-    </div>
-    """, unsafe_allow_html=True)
+t = st.tabs(tabs)
 
 # ---------------------------
-# Grid Rendering (Fixed Alignment)
+# 🏢 Companies Tab
 # ---------------------------
-def render_entity_grid(items, build_info_html):
-    if not items:
-        st.info("No data available.")
-        return
-    html = "<div class='grid-board'>"
-    for item in items:
-        info_html = build_info_html(item)
-        news = google_news_rss(item["name"], max_results=5)
-        card_html = (
-            "<div class='card'>"
-            f"<h3>{item['name']}</h3>"
-            f"{info_html}"
-            "<hr><div class='scroll-area'>"
-        )
-        for n in news:
-            title = n.get("title", "Untitled")
-            summ = (n.get("summary") or "").strip()
-            sent, _ = sentiment(f"{title}. {summ}")
-            badge = badge_for_sentiment(sent)
-            published = n.get("published", "")
-            link = n.get("link", "#")
-            preview = summ[:180] + ("…" if len(summ) > 180 else "")
-            tile_html = (
-                "<div style=\"border:1px solid #e2e8f0;border-radius:10px;"
-                "box-shadow:0 1px 3px rgba(0,0,0,0.05);padding:12px;margin-bottom:10px;background:white;\">"
-                "<div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;\">"
-                f"<div style=\"font-weight:600;font-size:14px;line-height:1.3;\">{title}</div>"
-                f"<div>{badge}</div></div>"
-                f"<div style=\"color:#475569;font-size:13px;min-height:40px;\">{preview}</div>"
-                f"<div style=\"margin-top:8px;font-size:12px;color:#64748b;\">{published}</div>"
-                "<div style=\"margin-top:8px;\">"
-                f"<a href=\"{link}\" target=\"_blank\" "
-                "style=\"text-decoration:none;background:#0ea5e9;color:white;"
-                "padding:6px 10px;border-radius:8px;font-size:12px;\">Open</a></div></div>"
-            )
-            card_html += tile_html
-        card_html += "</div></div>"
-        html += card_html
-    html += "</div>"
-    st.markdown(html, unsafe_allow_html=True)
+with t[0]:
+    st.subheader("Companies")
+    comps = state.get("companies", {})
+    if not comps:
+        st.info("No companies yet. Ask your Admin to add some under the Admin tab.")
+    else:
+        st.markdown('<div class="grid-board">', unsafe_allow_html=True)
+        for cid, c in comps.items():
+            company_card(c)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------
-# Tabs Rendering
+# 🧑‍💼 People Tab
 # ---------------------------
-with tab_persons:
-    board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
-    render_entity_grid(st.session_state.state["persons"], lambda p: f"<p><b>Company:</b> {p.get('company','-')}</p>")
-
-with tab_companies:
-    board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
-    render_entity_grid(st.session_state.state["companies"], lambda c: f"<p><b>Region:</b> {c.get('location','Global')}</p>")
-
-with tab_products:
-    board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
-    render_entity_grid(st.session_state.state["products"], lambda p: f"<p><b>Category:</b> {p.get('category','')}</p><p><b>Focus:</b> {p.get('focus','')}</p>")
+with t[1]:
+    st.subheader("People (grouped by company)")
+    comps = state.get("companies", {})
+    if not comps:
+        st.info("No people yet.")
+    else:
+        for cid, c in comps.items():
+            ppl = c.get("people", [])
+            if not ppl:
+                continue
+            with st.expander(f"{c.get('name','—')} — {len(ppl)}"):
+                chips = " ".join([person_chip(p) for p in ppl])
+                st.markdown(chips, unsafe_allow_html=True)
 
 # ---------------------------
-# Admin Tab
+# 🧰 Products Tab
 # ---------------------------
-if tab_admin:
-    with tab_admin:
-        st.subheader("⚙️ Admin Panel")
+with t[2]:
+    st.subheader("Products (company-wise)")
+    comps = state.get("companies", {})
+    if not comps:
+        st.info("No products yet.")
+    else:
+        for cid, c in comps.items():
+            prods = c.get("products", [])
+            if not prods:
+                continue
+            with st.expander(f"{c.get('name','—')} — {len(prods)}"):
+                chips = " ".join([product_chip(p) for p in prods])
+                st.markdown(chips, unsafe_allow_html=True)
 
-        # Manage Companies
-        st.markdown("### 🏢 Manage Companies")
-        comp_name = st.text_input("➕ New Company Name")
-        comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
-        if st.button("Add Company"):
-            st.session_state.state["companies"].append({"name": comp_name, "location": comp_loc})
-            save_state(st.session_state.state)
-            st.success(f"Added {comp_name} ({comp_loc})")
+# ---------------------------
+# ⚙️ Admin Tab (only if logged in)
+# ---------------------------
+if st.session_state.auth.get("logged_in"):
+    with t[-1]:
+        st.markdown("### Admin – Manage Companies, People & Products")
+        st.caption("All changes persist into **data/app_state.json** and are visible to everyone.")
 
-        if st.session_state.state["companies"]:
-            selected = st.selectbox("Select Company", [c["name"] for c in st.session_state.state["companies"]])
-            idx = next((i for i, c in enumerate(st.session_state.state["companies"]) if c["name"] == selected), None)
-            if idx is not None:
-                new_name = st.text_input("Edit Company Name", value=selected)
-                new_loc = st.selectbox("Edit Location", ["Global", "IN", "US"], key="edit_comp_loc")
+        admin_tabs = st.tabs(["➕ Add / 🗑 Delete Company", "👥 Manage People", "🧩 Manage Products"])
+
+        # -----------------------
+        # Company Management
+        # -----------------------
+        with admin_tabs[0]:
+            st.markdown("#### Add a Company")
+            with st.form("add_company_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("Save Company Changes"):
-                        st.session_state.state["companies"][idx] = {"name": new_name, "location": new_loc}
-                        save_state(st.session_state.state)
-                        st.success("✅ Company updated!")
+                    cname = st.text_input("Company Name *")
+                    ccat = st.text_input("Category", placeholder="Technology / FinTech / Retail ...")
                 with col2:
-                    if st.button("Delete Company"):
-                        st.session_state.state["companies"].pop(idx)
-                        save_state(st.session_state.state)
-                        st.warning("🗑️ Company deleted.")
-        st.markdown("---")
+                    csite = st.text_input("Website (URL)", placeholder="https://example.com")
 
-        # Manage Persons
-        st.markdown("### 🧑 Manage Persons")
-        person_name = st.text_input("➕ New Person Name")
-        company_link = st.text_input("Associated Company")
-        if st.button("Add Person"):
-            st.session_state.state["persons"].append({"name": person_name, "company": company_link})
-            save_state(st.session_state.state)
-            st.success(f"Added {person_name} (Company: {company_link})")
+                submitted = st.form_submit_button("Add Company")
+            if submitted:
+                if not cname.strip():
+                    st.error("Company Name is required.")
+                else:
+                    # Prevent duplicates by name (case-insensitive)
+                    exists = None
+                    for cid, c in state["companies"].items():
+                        if c.get("name","").strip().lower() == cname.strip().lower():
+                            exists = cid
+                            break
+                    if exists:
+                        st.warning(f"Company '{cname}' already exists.")
+                    else:
+                        cid = str(uuid.uuid4())
+                        state["companies"][cid] = {
+                            "name": cname.strip(),
+                            "site": csite.strip(),
+                            "category": ccat.strip(),
+                            "people": [],
+                            "products": []
+                        }
+                        save_state(state)
+                        st.success(f"Company '{cname}' added.")
 
-        if st.session_state.state["persons"]:
-            selected_p = st.selectbox("Select Person", [p["name"] for p in st.session_state.state["persons"]])
-            idx_p = next((i for i, p in enumerate(st.session_state.state["persons"]) if p["name"] == selected_p), None)
-            if idx_p is not None:
-                new_pname = st.text_input("Edit Person Name", value=selected_p)
-                new_plink = st.text_input("Edit Associated Company", value=st.session_state.state["persons"][idx_p].get("company", ""))
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Save Person Changes"):
-                        st.session_state.state["persons"][idx_p] = {"name": new_pname, "company": new_plink}
-                        save_state(st.session_state.state)
-                        st.success("✅ Person updated!")
-                with col2:
-                    if st.button("Delete Person"):
-                        st.session_state.state["persons"].pop(idx_p)
-                        save_state(st.session_state.state)
-                        st.warning("🗑️ Person deleted.")
-        st.markdown("---")
+            st.markdown("---")
+            st.markdown("#### Delete a Company")
+            comps = state.get("companies", {})
+            if not comps:
+                st.info("No companies to delete.")
+            else:
+                # Show by name sorted
+                options = [(c.get("name","—"), cid) for cid, c in comps.items()]
+                options = sorted(options, key=lambda x: x[0].lower())
+                labels = [o[0] for o in options]
+                values = [o[1] for o in options]
+                sel = st.selectbox("Select Company to delete", options=values, format_func=lambda cid: next((n for n, i in options if i==cid), "—"))
+                if st.button("Delete Company", type="primary"):
+                    removed_name = state["companies"].get(sel, {}).get("name","—")
+                    state["companies"].pop(sel, None)
+                    save_state(state)
+                    st.success(f"Company '{removed_name}' deleted.")
 
-        # Manage Products
-        st.markdown("### 🧩 Manage Products")
-        prod_name = st.text_input("➕ New Product Name")
-        prod_cat = st.text_input("Category")
-        prod_focus = st.text_area("Focus Area")
-        if st.button("Add Product"):
-            st.session_state.state["products"].append({"name": prod_name, "category": prod_cat, "focus": prod_focus})
-            save_state(st.session_state.state)
-            st.success(f"Added product: {prod_name}")
+        # -----------------------
+        # People Management
+        # -----------------------
+        with admin_tabs[1]:
+            comps = state.get("companies", {})
+            if not comps:
+                st.info("Add a company first.")
+            else:
+                st.markdown("#### Add Person")
+                options = [(c.get("name","—"), cid) for cid, c in comps.items()]
+                options = sorted(options, key=lambda x: x[0].lower())
+                labels = [o[0] for o in options]
+                values = [o[1] for o in options]
+                colA, colB = st.columns(2)
+                with colA:
+                    sel_cid = st.selectbox("Company *", options=values, format_func=lambda cid: next((n for n, i in options if i==cid), "—"), key="people_company_sel_add")
+                with colB:
+                    pass  # spacing
 
-        if st.session_state.state["products"]:
-            selected_prod = st.selectbox("Select Product", [p["name"] for p in st.session_state.state["products"]])
-            idx_prod = next((i for i, p in enumerate(st.session_state.state["products"]) if p["name"] == selected_prod), None)
-            if idx_prod is not None:
-                prod = st.session_state.state["products"][idx_prod]
-                new_pname = st.text_input("Edit Product Name", value=prod["name"])
-                new_cat = st.text_input("Edit Category", value=prod.get("category", ""))
-                new_focus = st.text_area("Edit Focus", value=prod.get("focus", ""))
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Save Product Changes"):
-                        st.session_state.state["products"][idx_prod] = {"name": new_pname, "category": new_cat, "focus": new_focus}
-                        save_state(st.session_state.state)
-                        st.success("✅ Product updated!")
-                with col2:
-                    if st.button("Delete Product"):
-                        st.session_state.state["products"].pop(idx_prod)
-                        save_state(st.session_state.state)
-                        st.warning("🗑️ Product deleted.")
+                with st.form("add_person_form", clear_on_submit=True):
+                    pcol1, pcol2, pcol3 = st.columns(3)
+                    with pcol1:
+                        pname = st.text_input("Name *")
+                    with pcol2:
+                        prole = st.text_input("Role/Title", placeholder="CTO, Head of Product, ...")
+                    with pcol3:
+                        plink = st.text_input("Profile Link", placeholder="https://linkedin.com/in/...")
+
+                    submitted = st.form_submit_button("Add Person")
+                if submitted:
+                    if not pname.strip():
+                        st.error("Person name is required.")
+                    else:
+                        person = {"id": str(uuid.uuid4()), "name": pname.strip(), "role": prole.strip(), "link": plink.strip()}
+                        state["companies"][sel_cid].setdefault("people", []).append(person)
+                        save_state(state)
+                        st.success(f"Added '{pname}' to {state['companies'][sel_cid]['name']}.")
+
+                st.markdown("---")
+                st.markdown("#### Delete Person")
+                sel_cid2 = st.selectbox("Company", options=values, format_func=lambda cid: next((n for n, i in options if i==cid), "—"), key="people_company_sel_del")
+                ppl = state["companies"][sel_cid2].get("people", [])
+                if not ppl:
+                    st.info("No people yet for this company.")
+                else:
+                    p_opts = [(f"{p.get('name','—')} — {p.get('role','')}", p.get("id")) for p in ppl]
+                    sel_pid = st.selectbox("Select person to delete", options=[pid for _, pid in p_opts], format_func=lambda pid: next((label for label, _id in p_opts if _id==pid), "—"))
+                    if st.button("Delete Person", key="delete_person_btn", type="primary"):
+                        before = len(ppl)
+                        ppl = [p for p in ppl if p.get("id") != sel_pid]
+                        state["companies"][sel_cid2]["people"] = ppl
+                        save_state(state)
+                        st.success("Person deleted.")
+
+        # -----------------------
+        # Products Management
+        # -----------------------
+        with admin_tabs[2]:
+            comps = state.get("companies", {})
+            if not comps:
+                st.info("Add a company first.")
+            else:
+                st.markdown("#### Add Product")
+                options = [(c.get("name","—"), cid) for cid, c in comps.items()]
+                options = sorted(options, key=lambda x: x[0].lower())
+                values = [o[1] for o in options]
+
+                sel_cid_p = st.selectbox("Company *", options=values, format_func=lambda cid: next((n for n, i in options if i==cid), "—"), key="product_company_sel_add")
+
+                with st.form("add_product_form", clear_on_submit=True):
+                    pr1, pr2 = st.columns([2,1])
+                    with pr1:
+                        pname = st.text_input("Product Name *")
+                        pdesc = st.text_area("Short Description", placeholder="One-liner or 2-3 lines about the product.")
+                    with pr2:
+                        plink = st.text_input("Product Link", placeholder="https://...")
+                        ptags = st.text_input("Tags (comma separated)", placeholder="ai, cloud, analytics")
+                    submitted = st.form_submit_button("Add Product")
+                if submitted:
+                    if not pname.strip():
+                        st.error("Product name is required.")
+                    else:
+                        tags = [t.strip() for t in ptags.split(",") if t.strip()] if ptags else []
+                        prod = {
+                            "id": str(uuid.uuid4()),
+                            "name": pname.strip(),
+                            "desc": pdesc.strip(),
+                            "link": plink.strip(),
+                            "tags": tags
+                        }
+                        state["companies"][sel_cid_p].setdefault("products", []).append(prod)
+                        save_state(state)
+                        st.success(f"Product '{pname}' added to {state['companies'][sel_cid_p]['name']}.")
+
+                st.markdown("---")
+                st.markdown("#### Delete Product")
+                sel_cid_pd = st.selectbox("Company", options=values, format_func=lambda cid: next((n for n, i in options if i==cid), "—"), key="product_company_sel_del")
+                prods = state["companies"][sel_cid_pd].get("products", [])
+                if not prods:
+                    st.info("No products yet for this company.")
+                else:
+                    p_opts = [(p.get("name","—"), p.get("id")) for p in prods]
+                    sel_prid = st.selectbox("Select product to delete", options=[pid for _, pid in p_opts], format_func=lambda pid: next((label for label, _id in p_opts if _id==pid), "—"))
+                    if st.button("Delete Product", key="delete_product_btn", type="primary"):
+                        prods = [p for p in prods if p.get("id") != sel_prid]
+                        state["companies"][sel_cid_pd]["products"] = prods
+                        save_state(state)
+                        st.success("Product deleted.")
