@@ -202,11 +202,11 @@ def board_header(title: str, subtitle: str):
     """, unsafe_allow_html=True)
 
 # ---------------------------
-# Persons Tab
+# Persons Tab (Safe)
 # ---------------------------
 with tab_persons:
     board_header("🧑 Person Intelligence Board", "🔍 Latest updates from influential tech leaders.")
-    persons = st.session_state.state.get("persons", [])
+    persons = [p for p in st.session_state.state.get("persons", []) if isinstance(p, dict) and p.get("name")]
     if not persons:
         st.info("No persons added yet.")
     else:
@@ -220,11 +220,11 @@ with tab_persons:
                 render_tiles(news)
 
 # ---------------------------
-# Companies Tab
+# Companies Tab (Safe)
 # ---------------------------
 with tab_companies:
     board_header("🏢 Company Intelligence Board", "📈 Live updates from major tech organizations.")
-    companies = st.session_state.state.get("companies", [])
+    companies = [c for c in st.session_state.state.get("companies", []) if isinstance(c, dict) and c.get("name")]
     if not companies:
         st.info("No companies added yet.")
     else:
@@ -238,11 +238,11 @@ with tab_companies:
                 render_tiles(news)
 
 # ---------------------------
-# Products Tab
+# Products Tab (Safe)
 # ---------------------------
 with tab_products:
     board_header("🧩 Product Intelligence Board", "📊 Real-time updates and trends from top tech products.")
-    products = st.session_state.state.get("products", [])
+    products = [p for p in st.session_state.state.get("products", []) if isinstance(p, dict) and p.get("name")]
     if not products:
         st.info("No products added yet.")
     else:
@@ -257,7 +257,7 @@ with tab_products:
                 render_tiles(news)
 
 # ---------------------------
-# Admin Tab
+# Admin Tab (Safe)
 # ---------------------------
 if tab_admin:
     with tab_admin:
@@ -266,7 +266,12 @@ if tab_admin:
 
         state = st.session_state.state
 
-        # Companies
+        # Clean existing malformed data
+        state["companies"] = [c for c in state.get("companies", []) if isinstance(c, dict)]
+        state["persons"] = [p for p in state.get("persons", []) if isinstance(p, dict)]
+        state["products"] = [p for p in state.get("products", []) if isinstance(p, dict)]
+
+        # --- Companies ---
         st.markdown("### 🏢 Manage Companies")
         comp_name = st.text_input("➕ New Company Name")
         comp_loc = st.selectbox("Location", ["Global", "IN", "US"], key="comp_loc")
@@ -295,7 +300,7 @@ if tab_admin:
 
         st.markdown("---")
 
-        # Persons
+        # --- Persons ---
         st.markdown("### 🧑 Manage Persons")
         person_name = st.text_input("➕ New Person Name")
         company_link = st.text_input("Associated Company")
@@ -324,7 +329,7 @@ if tab_admin:
 
         st.markdown("---")
 
-        # Products
+        # --- Products ---
         st.markdown("### 🧩 Manage Products")
         prod_name = st.text_input("➕ New Product Name")
         prod_cat = st.text_input("Category")
