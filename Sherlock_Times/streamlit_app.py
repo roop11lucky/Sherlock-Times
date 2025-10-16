@@ -13,7 +13,7 @@ from streamlit_autorefresh import st_autorefresh
 # ---------------------------
 # App Config
 # ---------------------------
-st.set_page_config(page_title="🕵️ Sherlock Times", page_icon="🕵️", layout="wide")
+st.set_page_config(page_title="Sherlock Times", page_icon="🕵️", layout="wide")
 APP_TITLE = "🕵️ Sherlock Times – Company, Person & Product News Dashboard"
 
 # ---------------------------
@@ -362,3 +362,4 @@ if tab_admin:
                         state["products"].pop(idx_prod)
                         save_state(state)
                         st.warning("🗑️ Product deleted.")
+
