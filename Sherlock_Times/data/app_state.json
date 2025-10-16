@@ -1,166 +1,60 @@
 {
-  "meta": {
-    "updated_at": "2025-10-15T22:59:00.000000",
-    "version": "1.1.2"
-  },
-  "companies": {
-    "google": {
-      "name": "Google",
-      "site": "",
-      "category": "",
-      "location": "IN",
-      "people": [
-        {"id": "p1", "name": "Sundar Pichai", "role": "CEO", "link": ""},
-        {"id": "p2", "name": "Thomas Kurian", "role": "Google Cloud CEO", "link": ""},
-        {"id": "p3", "name": "Preeti Lobana", "role": "Leader, Google India", "link": ""},
-        {"id": "p4", "name": "Sashikumar Sreedharan", "role": "Director, Google India", "link": ""}
-      ],
-      "products": [
-        {
-          "id": "prod1",
-          "name": "Gemini AI",
-          "desc": "Gemini models, multimodal reasoning, and integration with Google Workspace",
-          "link": "",
-          "tags": ["Multimodal AI", "Google Workspace"]
-        }
-      ]
-    },
-    "synopsys": {
-      "name": "Synopsys",
-      "site": "",
-      "category": "",
-      "location": "US",
-      "people": [
-        {"id": "p10", "name": "Sassine Ghazi", "role": "President & CEO", "link": ""},
-        {"id": "p11", "name": "Shelagh Glaser", "role": "CFO", "link": ""},
-        {"id": "p12", "name": "Ravi Subramanian", "role": "SVP", "link": ""},
-        {"id": "p13", "name": "Shankar Krishnamoorthy", "role": "Chief Product Officer", "link": ""}
-      ],
-      "products": []
-    },
-    "cisco": {
-      "name": "Cisco",
-      "site": "",
-      "category": "",
-      "location": "US",
-      "people": [
-        {"id": "p20", "name": "Chuck Robbins", "role": "Chair & CEO", "link": ""},
-        {"id": "p21", "name": "Mark Patterson", "role": "CFO", "link": ""}
-      ],
-      "products": []
-    },
-    "meta": {
-      "name": "Meta",
-      "site": "",
-      "category": "",
-      "location": "Global",
-      "people": [
-        {"id": "p30", "name": "Mark Zuckerberg", "role": "CEO", "link": ""},
-        {"id": "p31", "name": "Susan Li", "role": "CFO", "link": ""},
-        {"id": "p32", "name": "Andrew Bosworth", "role": "CTO", "link": ""},
-        {"id": "p33", "name": "Javier Olivan", "role": "COO", "link": ""},
-        {"id": "p34", "name": "Chris Cox", "role": "CPO", "link": ""}
-      ],
-      "products": []
-    },
-    "ideal_living": {
-      "name": "Ideal Living Management LLC",
-      "site": "",
-      "category": "",
-      "location": "Global",
-      "people": [
-        {"id": "p40", "name": "Peter Spiegel", "role": "Co-Founder", "link": ""},
-        {"id": "p41", "name": "Katie Williams", "role": "President", "link": ""},
-        {"id": "p42", "name": "Gene Boyarsky", "role": "VP Operations", "link": ""}
-      ],
-      "products": []
-    },
-    "newfold": {
-      "name": "NewFold",
-      "site": "",
-      "category": "",
-      "location": "Global",
-      "people": [
-        {"id": "p50", "name": "Sharon Rowlands", "role": "CEO", "link": ""},
-        {"id": "p51", "name": "Christina Clohecy", "role": "CFO", "link": ""},
-        {"id": "p52", "name": "Anuj Saxena", "role": "VP", "link": ""}
-      ],
-      "products": []
-    },
-    "gigamon": {
-      "name": "Gigamon",
-      "site": "",
-      "category": "",
-      "location": "Global",
-      "people": [
-        {"id": "p60", "name": "Shane Buckley", "role": "President & CEO", "link": ""},
-        {"id": "p61", "name": "Tony Jarjoura", "role": "CTO", "link": ""}
-      ],
-      "products": []
-    },
-    "tigergraph": {
-      "name": "TigerGraph",
-      "site": "",
-      "category": "",
-      "location": "Global",
-      "people": [
-        {"id": "p70", "name": "Rajeev Shrivastava", "role": "VP Engineering", "link": ""},
-        {"id": "p71", "name": "Yu Xu", "role": "Founder & CEO", "link": ""},
-        {"id": "p72", "name": "Songting Chen", "role": "Chief Scientist", "link": ""}
-      ],
-      "products": []
-    },
-    "tesla": {
-      "name": "Tesla",
-      "site": "",
-      "category": "",
-      "location": "Global",
-      "people": [
-        {"id": "p80", "name": "Elon Musk", "role": "CEO", "link": ""}
-      ],
-      "products": []
-    }
-  },
-  "products": {
-    "openai": {
-      "name": "OpenAI",
-      "category": "Generative AI / API Platform",
-      "focus": "GPT models, multimodal AI, API ecosystem, and enterprise integrations"
-    },
-    "servicenow": {
-      "name": "ServiceNow",
-      "category": "Digital Workflow / ITSM",
-      "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"
-    },
-    "snowflake": {
-      "name": "Snowflake",
-      "category": "Cloud Data Platform",
-      "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"
-    },
-    "databricks": {
-      "name": "Databricks",
-      "category": "Data & AI Platform",
-      "focus": "Lakehouse architecture, MLflow, Delta Live Tables, and Unity Catalog"
-    },
-    "palantir": {
-      "name": "Palantir",
-      "category": "Enterprise AI / Data Intelligence",
-      "focus": "Foundry, AIP, operational AI, and defense applications"
-    },
-    "gemini": {
-      "name": "Gemini AI",
-      "category": "Multimodal AI Model",
-      "focus": "Gemini models, multimodal reasoning, and integration with Google Workspace"
-    },
-    "salesforce": {
-      "name": "Salesforce",
-      "category": "CRM / Business Cloud",
-      "focus": "Einstein AI, Data Cloud, automation, and GPT-powered CRM features"
-    },
-    "nvidia": {
-      "name": "Nvidia",
-      "category": "AI Hardware & Computing",
-      "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"
-    }
-  }
+  "companies": [
+    {"name": "Google", "location": "IN"},
+    {"name": "Synopsys", "location": "US"},
+    {"name": "Cisco", "location": "US"},
+    {"name": "Meta", "location": "Global"},
+    {"name": "Ideal Living Management LLC", "location": "Global"},
+    {"name": "NewFold", "location": "Global"},
+    {"name": "Gigamon", "location": "Global"},
+    {"name": "Tiger Graph", "location": "Global"},
+    {"name": "Tesla", "location": "Global"}
+  ],
+  "persons": [
+    {"name": "Sundar Pichai", "company": "Google"},
+    {"name": "Thomas Kurian", "company": "Google"},
+    {"name": "Preeti Lobana", "company": "Google India"},
+    {"name": "Sashikumar Sreedharan", "company": "Google India"},
+
+    {"name": "Sassine Ghazi", "company": "Synopsys"},
+    {"name": "Shelagh Glaser", "company": "Synopsys"},
+    {"name": "Ravi Subramanian", "company": "Synopsys"},
+    {"name": "Shankar Krishnamoorthy", "company": "Synopsys"},
+
+    {"name": "Chuck Robbins", "company": "Cisco"},
+    {"name": "Mark Patterson", "company": "Cisco"},
+
+    {"name": "Mark Zuckerberg", "company": "Meta"},
+    {"name": "Susan Li", "company": "Meta"},
+    {"name": "Andrew Bosworth", "company": "Meta"},
+    {"name": "Javier Olivan", "company": "Meta"},
+    {"name": "Chris Cox", "company": "Meta"},
+
+    {"name": "Peter Spiegel", "company": "Ideal Living Management LLC"},
+    {"name": "Katie Williams", "company": "Ideal Living Management LLC"},
+    {"name": "Gene Boyarsky", "company": "Ideal Living Management LLC"},
+
+    {"name": "Sharon Rowlands", "company": "NewFold"},
+    {"name": "Christina Clohecy", "company": "NewFold"},
+    {"name": "Anuj Saxena", "company": "NewFold"},
+
+    {"name": "Shane Buckley", "company": "Gigamon"},
+    {"name": "Tony Jarjoura", "company": "Gigamon"},
+
+    {"name": "Rajeev Shrivastava", "company": "Tiger Graph"},
+    {"name": "Yu Xu", "company": "Tiger Graph"},
+    {"name": "Songting Chen", "company": "Tiger Graph"},
+
+    {"name": "Elon Musk", "company": "Tesla"}
+  ],
+  "products": [
+    {"name": "OpenAI", "category": "Generative AI / API Platform", "focus": "GPT models, multimodal AI, API ecosystem, and enterprise integrations"},
+    {"name": "ServiceNow", "category": "Digital Workflow / ITSM", "focus": "Flow Designer, platform automation, Now Assist, and AI integrations"},
+    {"name": "Snowflake", "category": "Cloud Data Platform", "focus": "Snowpark, Data Marketplace, secure data sharing, and AI/ML workloads"},
+    {"name": "Databricks", "category": "Data & AI Platform", "focus": "Lakehouse architecture, MLflow, Delta Live Tables, and Unity Catalog"},
+    {"name": "Palantir", "category": "Enterprise AI / Data Intelligence", "focus": "Foundry, AIP, operational AI, and defense applications"},
+    {"name": "Gemini AI", "category": "Multimodal AI Model", "focus": "Gemini models, multimodal reasoning, and integration with Google Workspace"},
+    {"name": "Salesforce", "category": "CRM / Business Cloud", "focus": "Einstein AI, Data Cloud, automation, and GPT-powered CRM features"},
+    {"name": "Nvidia", "category": "AI Hardware & Computing", "focus": "GPUs, CUDA SDKs, TensorRT, DGX servers, and AI Enterprise suite"}
+  ]
 }
